@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Perlin3D", "Perlin3D\Perlin3D.vcxproj", "{7DC18304-E334-48CA-AD46-10829304BCBB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7DC18304-E334-48CA-AD46-10829304BCBB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7DC18304-E334-48CA-AD46-10829304BCBB}.Debug|Win32.Build.0 = Debug|Win32
+		{7DC18304-E334-48CA-AD46-10829304BCBB}.Release|Win32.ActiveCfg = Release|Win32
+		{7DC18304-E334-48CA-AD46-10829304BCBB}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
