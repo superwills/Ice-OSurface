@@ -90,6 +90,7 @@
     <ClInclude Include="GLUtil.h" />
     <ClInclude Include="MersenneTwister.h" />
     <ClInclude Include="perlin.h" />
+    <ClInclude Include="PointCloud.h" />
     <ClInclude Include="StdWilUtil.h" />
     <ClInclude Include="Vectorf.h" />
   </ItemGroup>

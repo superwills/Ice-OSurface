@@ -45,7 +45,22 @@
 #include <functional>
 using namespace std;
 
-// You need a fat epsilon for the tirangle merge. 1e-6f is TOO NARROW
+// For naming the axis edge a vertex is on
+//              0   1   2   3   4   5
+enum AxisEdge{ PX, NX, PY, NY, PZ, NZ } ;
+Vector4f AxisEdgeColors[] = {
+  Vector4f(1,0,0,1), Vector4f(1,0,0,1),
+  Vector4f(0,1,0,1), Vector4f(0,1,0,1),
+  Vector4f(0,0,1,1), Vector4f(0,0,1,1)
+} ;
+
+#define OTHERAXIS1(axis) ((axis+1)%3)
+#define OTHERAXIS2(axis) ((axis+2)%3)
+
+// EVEN AXES have (AxisEdge%2==0).
+// YOUR AXIS INDEX is AxisEdge/2 (PX,NX=>0, PY,NY=>1, PZ,NZ=>2)
+
+// You need a fat epsilon for the edge-collapsing vertex merge. 1e-6f is TOO NARROW
 float EPS = 1e-3f;
 float w=768.f, h=768.f ;
 static float mx, my, sbd=150.f,
@@ -55,19 +70,21 @@ static float mx, my, sbd=150.f,
   cubeSize=100.f ;
 
 #define SOLID 0
-//int cols=160,rows=160,slabs=160;
-//int cols=100,rows=100,slabs=100 ;
 int cols=10,rows=10,slabs=10 ;
 float worldSize=200;
 
-Vector3f offset( -cols/2.f, -rows/2.f, -slabs/2.f ) ; // offset
+// the offset appliied to the voxel grid to center it in world space
+Vector3f offset( -cols/2.f, -rows/2.f, -slabs/2.f ) ;
+
+// blow up the visualization so it isn't too small
 Vector3f gridSizer = Vector3f(worldSize) / Vector3f( cols,rows,slabs ) ;
 
 float lineWidth=1.f,ptSize=1.0f;
 bool showGradients=0, showLines=0 ;
 bool renderPts = 0 ;
-bool repeats=0,showTris=1,showCubes=1;
-bool voxelGenMode=1;
+
+// Show the world repeated (key 'r')
+bool repeats=0;
 
 float speed=0.02f ;
 Axis axis ;
@@ -78,127 +95,26 @@ struct Voxel
   Vector4f d ;
   Vector4f color ;
 } ;
-
-#define INDEX(i,j,k) ((i) + (j)*cols + (k)*cols*rows)
-// 
-struct IsosurfacePunchthru
-{
-  // the original voxel index that DETECTED the punchthru
-  Vector3i voxelIndex ;
-
-  // The actual 3-space point of the punchthru
-  // this is computed based on dv and the values at
-  // the actual voxels where this punchthru took place.
-  //Vector3f pt ;
-  int directionIndex ; // the direction of the vector that breaks the isosurface.
-  // looks up into IsosurfacePunchthruSet.Directions[ directionIndex ] to get the actual direction.
-  
-  float t ;    // how far between voxelIndex and the voxel at directionIndex you were at isosurface intn.
-  float dv ;   // the actual jump in value across dir.
-
-  IsosurfacePunchthru():t(0.f),dv(0.f)
-  {
-  }
-
-  IsosurfacePunchthru( Vector3i iVoxelIndex, int iDirectionIndex, float iT, float iDv ) :
-    voxelIndex(iVoxelIndex),directionIndex(iDirectionIndex),t(iT),dv(iDv)
-  {
-  }
-} ;
-
-// Every POINT stores the directions for which the isosurface
-// punchthru succeeded.
-struct IsosurfacePunchthruSet
-{
-  static vector<Vector3i> Directions ;
-  static vector< vector<int> > DirsNeighbours ;
-  // Directions[i] has neighbours listed by neighbours[i][0]..neighbours[i][size]
-
-  static void addDirection( const Vector3i& v )
-  {
-    Directions.push_back( v ) ;
-    DirsNeighbours.push_back( vector<int>() ) ;
-  }
-
-  static void addNeighbours( int forDirection, int* neighbours, int len )
-  {
-    if( forDirection >= DirsNeighbours.size() )
-    {
-      printf( "%d oob DirsNeighbours (%d)\n", forDirection, DirsNeighbours.size() ) ;
-      return ;
-    }
-    for( int i = 0 ; i < len ; i++ )
-      DirsNeighbours[forDirection].push_back( neighbours[i] ) ;
-  }
-
-  // There are 26 directions over which the isosurface can break.
-  // (1 towards each of the 26 points that surround each 3x3 group).
-  // If isosurface is drawn differently for going - and going + into it,
-  // it will be 2 sided and have different colors.  Or you can just draw
-  // the + side, or you can even give it a thickness (provided grid spacing
-  // is course enough.)
-
-  // indexing is a 3x3x3 cube LINEAR indexing 
-  // in the order z,y,x.
-  vector<IsosurfacePunchthru*> directedPunchthrus ; // punchthrus indexed by directions in Directions.
-
-  IsosurfacePunchthruSet()
-  {
-    directedPunchthrus.resize( Directions.size(),0 ) ;
-  }
-  ~IsosurfacePunchthruSet()
-  {
-    for( int i = 0 ; i < directedPunchthrus.size() ; i++ )
-      if( directedPunchthrus[i] )
-        delete directedPunchthrus[i] ;
-  }
-} ;
-
-vector<Vector3i> IsosurfacePunchthruSet::Directions ;
-vector< vector<int> > IsosurfacePunchthruSet::DirsNeighbours ;
-
-// for now only float.
 vector<Voxel> voxels ;
-vector<IsosurfacePunchthruSet> punchthru ;
-vector<VertexPC> gradients ;
-vector<VertexPC> debugLines ;
+
+// outputs a "point". used by pointcloud visualization.
+void pt( const Vector3f& p, float size, const Vector4f& color ) ;
+
+#include "PointCloud.h"
+
+vector<VertexPC> gradients ; // for showing isosurface gradients as given by the 
+// Perlin noise class version that HAS gradients for each point (not used actually in final code)
+
+vector<VertexPC> debugLines ;  // for showing surface normals etc.
+
+// Final array of vertices output by program (to draw)
 vector<VertexPNC> verts ;
-vector<VertexPC> tris ;
-
-vector<VertexPNC> iVerts ;
 vector<int> indices ;
-
-
-vector<Vector3f> randPts ;
 
 void addDebugLine( const Vector3f& v1, const Vector4f& c1, const Vector3f& v2, const Vector4f& c2 )
 {
   debugLines.push_back( VertexPC( v1, c1 ) ) ;
   debugLines.push_back( VertexPC( v2, c2 ) ) ;
-}
-
-void genTet( const Vector3f& center )
-{
-  float s = 5 ;
-  /*
-    C----G
-   /|   /|
-  D-A--H E
-  |/   |/
-  B----F
-  */
-  Vector3f A( -s, -s, -s ),  B( -s, -s,  s ),  C( -s,  s, -s ),  D( -s,  s,  s ),
-           E(  s, -s, -s ),  F(  s, -s,  s ),  G(  s,  s, -s ),  H(  s,  s,  s ) ;
-  
-  A+=center,  B+=center,  C+=center,  D+=center,
-  E+=center,  F+=center,  G+=center,  H+=center ;
-
-  Geometry::addTet( verts, A, D, C, G, Vector4f( 0,0,1,0.5 ) ) ;
-  Geometry::addTet( verts, E, G, F, A, Vector4f( 0,1,0,0.5 ) ) ;
-  Geometry::addTet( verts, H, D, F, G, Vector4f( 0.76,0.05,0.18,0.5 ) ) ;
-  Geometry::addTet( verts, F, D, A, G, Vector4f( 1,1,0,0.5 ) ) ; // MIDDLE TET
-  Geometry::addTet( verts, B, D, A, F, Vector4f( 1,0,0,0.5 ) ) ;
-  
 }
 
 void pt( const Vector3f& p, float size, const Vector4f& color )
@@ -356,7 +272,39 @@ void tet( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3
     cutTet3Out( D, B, A, C ) ;
 }
 
+void genVizMarchingTets()
+{
+  for( int k = 0 ; k < slabs ; k++ )
+  {
+    for( int j = 0 ; j < rows ; j++ )
+    {
+      for( int i = 0 ; i < cols ; i++ )
+      {
+        Vector3i dex( i,j,k ) ;
+        Vector3i A=dex+Vector3i(0,0,0), B=dex+Vector3i(0,0,1), C=dex+Vector3i(0,1,0), D=dex+Vector3i(0,1,1),
+                 E=dex+Vector3i(1,0,0), F=dex+Vector3i(1,0,1), G=dex+Vector3i(1,1,0), H=dex+Vector3i(1,1,1);
+        
+        // There are 5 tetrahedra that may be rendered.
+        // These are the tetrahedra:
+        // A, D, C, G
+        // E, G, F, A
+        // H, D, F, G
+        // F, D, A, G
+        // B, D, A, F
+        tet( A, D, C, G ) ;
+        tet( E, G, F, A ) ;
+        tet( H, D, F, G ) ;
+        tet( F, D, A, G ) ;
+        tet( B, D, A, F ) ;
+      }
+    }
+  }
+}
 
+
+
+
+/// MARCHING CUBES
 // Neighbours are in the order a facing out tri should be wound
 // I only need to know these to gen an isosurface.
 //    2----6
@@ -381,7 +329,8 @@ void cornerTri( Vector3i* pts, int a, bool rev, Vector4f color )
   //if(a==2||a==3||a==6||a==7)  color=Vector4f(1,1,1,1) ;
   //else  color=Yellow;
   //!! Actually the above lines show that it ISN'T a problem.
-  // But I don't know why.
+  // The reason is I reverse the winding of top tris by reversing the ORDER
+  // when the UP axis is chosen.
   Vector3f cut1 = getCutPoint( pts[a], pts[ adj[a][0] ] ) ;
   Vector3f cut2 = getCutPoint( pts[a], pts[ adj[a][1] ] ) ;
   Vector3f cut3 = getCutPoint( pts[a], pts[ adj[a][2] ] ) ;
@@ -439,8 +388,6 @@ void benchTris( Vector3i* pts, int a, int b, int &ia, int &ib, vector<int> &nia,
     Geometry::addQuadWithNormal( verts, cutA1,cutA2,cutB2,cutB1, color ) ;
 
 } ;
-
-
 
 // tells you if a&b are adjacent to each other.
 // returns the INDEX of the adjacency for a and b.
@@ -911,8 +858,6 @@ int adjacencyOf4( Vector3i* pts, int& a, int& b, int& c, int& d,
   }
 }
 
-
-
 void cube( const Vector3i& dex )
 {
   //    C----G
@@ -974,7 +919,7 @@ void cube( const Vector3i& dex )
     else  a=out[0]; // only 1 vertex OUT.  the cut face
     // faces OUT of rest of the cube.
 
-    cornerTri( pts, a, revs, Blue ) ;
+    cornerTri( pts, a, revs, Purple ) ;
   }
 
   // If SAME_FACE is false, they don't even share a face at all.
@@ -1023,38 +968,6 @@ void cube( const Vector3i& dex )
   }
 }
 
-
-void genVizMarchingTets()
-{
-  for( int k = 0 ; k < slabs ; k++ )
-  {
-    for( int j = 0 ; j < rows ; j++ )
-    {
-      for( int i = 0 ; i < cols ; i++ )
-      {
-        Vector3i dex( i,j,k ) ;
-        Vector3i A=dex+Vector3i(0,0,0), B=dex+Vector3i(0,0,1), C=dex+Vector3i(0,1,0), D=dex+Vector3i(0,1,1),
-                 E=dex+Vector3i(1,0,0), F=dex+Vector3i(1,0,1), G=dex+Vector3i(1,1,0), H=dex+Vector3i(1,1,1);
-        
-        // There are 5 tetrahedra that may be rendered.
-        // These are the tetrahedra:
-        // A, D, C, G
-        // E, G, F, A
-        // H, D, F, G
-        // F, D, A, G
-        // B, D, A, F
-        tet( A, D, C, G ) ;
-        tet( E, G, F, A ) ;
-        tet( H, D, F, G ) ;
-        tet( F, D, A, G ) ;
-        tet( B, D, A, F ) ;
-      }
-    }
-  }
-
-  
-}
-
 void genVizMarchingCubes()
 {
   for( int k = 0 ; k < slabs ; k++ )
@@ -1068,6 +981,12 @@ void genVizMarchingCubes()
       }
     }
   }
+}
+
+// "smooths" the mesh by removing small EDGES
+void smoothMesh()
+{
+  vector<VertexPNC> iVerts ;
 
   // now smooth the normals.
   iVerts.clear() ;
@@ -1101,177 +1020,133 @@ void genVizMarchingCubes()
   // Neighbour is actually a bad name for this structure
   // more like Isopoint or SamePoint -- the LAST PT on the mesh
   // is exactly the same as the 1st pt, only translated +worldSize in x,y, or z
-  struct Neighbour
-  {
-    enum NEdge{ NOTHING, NX, PX, NY, PY, NZ, PZ } ;
-    int edgeSide ;  //which edgeside is the point on?
-    int axisIndex ; //0 for x, 1 for y, 2 for z
-    int neighbour ; // WHO IS MY NEIGHBOUR?  he is always on the opposite edgeside.
 
-    Neighbour(){
-      edgeSide = NOTHING ;
-      neighbour=-1; // no neighbour
-      axisIndex=-1;
-    }
+  // Count of how many times each vertex hit an edge.
+  vector< vector<int> > vertexWallHits ; // the numbers are WHICH EDGE you hit.
+  vector< vector<int> > wallToVertexHits ; // maps PX=>list of verts on that edge.
 
-    inline int otherAxis1(){ return (axisIndex+1)%3; }
-    inline int otherAxis2(){ return (axisIndex+2)%3; }
-  } ;
-
-  // offset to use on THE POTENTIAL NEIGHBOURS to bring them to my side.
-  // my neighbours satisfy NEIGHBOURPOS+NeighbourOffsets[MYEDGESIDE] = MYPOS.
-  Vector3f NeighbourOffsets[] = { Vector3f( 0,0,0 ),
-    Vector3f( -worldSize,0,0 ), Vector3f( worldSize,0,0 ), 
-    Vector3f( 0,-worldSize,0 ), Vector3f( 0,worldSize,0 ), 
-    Vector3f( 0,0,-worldSize ), Vector3f( 0,0,worldSize )  } ;
-
-  vector<Neighbour> iVertsNeighbours ;
-  iVertsNeighbours.resize( iVerts.size() ) ;
-  vector<int> pxEdges,pyEdges,pzEdges,nxEdges,nyEdges,nzEdges ;
+  vertexWallHits.resize( iVerts.size() ) ;
+  wallToVertexHits.resize( 6 ) ;
 
   for( int i = 0 ; i < iVerts.size() ; i++ )
   {
-    // This pt is ON THE NX WALL.
-    if( isNear( iVerts[i].pos.x, -worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::NX ;
-      iVertsNeighbours[i].axisIndex = 0 ;
-      nxEdges.push_back( i ) ;
-      //iVerts[i].color=Red*0.5;
-    }
-    else if( isNear( iVerts[i].pos.x, worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::PX ;
-      iVertsNeighbours[i].axisIndex = 0 ;
-      pxEdges.push_back( i ) ;
-      //iVerts[i].color=Red;
-    }
-
-    if( isNear( iVerts[i].pos.y, -worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::NY ;
-      iVertsNeighbours[i].axisIndex = 1 ;
-      nyEdges.push_back( i ) ;
-      //iVerts[i].color=Green*.5;
-    }
-    else if( isNear( iVerts[i].pos.y, worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::PY ;
-      iVertsNeighbours[i].axisIndex = 1 ;
-      pyEdges.push_back( i ) ;
-      //iVerts[i].color=Green;
-    }
-
-    if( isNear( iVerts[i].pos.z, -worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::NZ ;
-      iVertsNeighbours[i].axisIndex = 2 ;
-      nzEdges.push_back( i ) ;
-      //iVerts[i].color=Purple*.5;
-    }
-    else if( isNear( iVerts[i].pos.z, worldSize/2, EPS ) ) {
-      iVertsNeighbours[i].edgeSide = Neighbour::PZ ;
-      iVertsNeighbours[i].axisIndex = 2 ;
-      pzEdges.push_back( i ) ;
-      //iVerts[i].color=Purple;
-    }
-  }
-
-  // So now I know what side you're on.  Now get your neighbour.
-  for( int i = 0 ; i < iVerts.size() ; i++ )
-  {
-    // which collection to search?
-    vector<int>* nCollection = &pxEdges ;
-    switch( iVertsNeighbours[i].edgeSide )
+    for( int j = PX ; j <= NZ ; j++ )
     {
-      // Look in PX for my neighbour.
-      case Neighbour::NX:  nCollection = &pxEdges ;  break ;
-      case Neighbour::PX:  nCollection = &nxEdges ;  break ;
-      case Neighbour::NY:  nCollection = &pyEdges ;  break ;
-      case Neighbour::PY:  nCollection = &nyEdges ;  break ;
-      case Neighbour::NZ:  nCollection = &pzEdges ;  break ;
-      case Neighbour::PZ:  nCollection = &nzEdges ;  break ;
+      int axis=j/2;
+      int neg=j%2 ; // negative axes are the odd ones 1,3,5.
+      float worldEdge = (-2*neg + 1) * worldSize/2.f ; // 0=>+1, 1=>-1
+      
+      if( isNear( iVerts[i].pos.elts[axis], worldEdge, EPS ) )
+      {
+        // You're on this axis.
+        vertexWallHits[i].push_back( j ) ;
+        wallToVertexHits[j].push_back( i ) ; // store the reverse mapping as well
+      }
     }
-
-    // which value?
-    for( int j = 0 ; j < nCollection->size() ; j++ )
-      if( iVerts[i].pos.isNear( iVerts[ (*nCollection)[j] ].pos + NeighbourOffsets[ iVertsNeighbours[i].edgeSide ], EPS ) )
-        iVertsNeighbours[i].neighbour = (*nCollection)[j];
   }
   
-  // show neighbours
-  //for( int i = 0 ; i < iVertsNeighbours.size() ; i++ )
-  //{
-  //  if( iVertsNeighbours[i].neighbour != -1 )
-  //  {
-  //    printf( "Vertex %d is neighboured to %d\n", i, iVertsNeighbours[i].neighbour ) ;
-  //    iVerts[i].color=iVerts[iVertsNeighbours[i].neighbour].color=Vector4f::random();
-  //  }
-  //}
+  for( int i = 0 ; i < iVerts.size() ; i++ )
+  {
+    if( vertexWallHits[i].size() )
+    {
+      // change the color.
+      //iVerts[i].color = Black ;
+      for( int axisEdge : vertexWallHits[i] )
+      {
+        //iVerts[i].color.xyz() += AxisEdgeColors[axisEdge].xyz() ;
+        // get the neighbour and avg the normal
+        int axis= axisEdge/2;
+        int oAxis1 = OTHERAXIS1( axis ) ;
+        int oAxis2 = OTHERAXIS2( axis ) ;
+
+        int neg = axisEdge%2 ; // negative axes are the odd ones 1,3,5.
+        int sign = -2*neg + 1 ; // 0=>+1, 1=>-1
+        //float axisOffset = sign * worldSize ;  // to move from NX wall to PX, for example,
+        // you ADD axisOffset (+worldSize) to elts[axis].
+        // so (x,y,z) => (x+worldSize,y,z).
+        
+        // Check the elements on the OPPOSITE wall
+        // EVEN: add one 0(PX)=>1(NX).  ODD: subtract one.  3(NY)=>2(PY)
+        int oppositeWall = axisEdge + sign ;
+
+        // search the elements in the opposite wall for a vertex that matches mine
+        for( int owv : wallToVertexHits[oppositeWall] )
+        {
+          // owi: oppositeWallVertexIndex
+          // MOVE that opposite wall pt TO MY WALL
+          //oppositeWallPt.elts[axis] += axisOffset ;
+          //OR you could just compare THE OTHER 2 AXES.
+          if( isNear( iVerts[owv].pos.elts[oAxis1], iVerts[i].pos.elts[oAxis1], EPS ) &&
+              isNear( iVerts[owv].pos.elts[oAxis2], iVerts[i].pos.elts[oAxis2], EPS ) )
+          {
+            // These are "touching" at the wrap point
+            iVerts[i].normal += iVerts[owv].normal ;
+            //iVerts[i].color = iVerts[owv].color = Vector4f::random() ; // ensure it is behaving correctly
+          }
+        }
+      }
+
+      iVerts[i].normal.normalize() ;
+    }
+  }
   
   // Now we can downsample the mesh.
   // You can only merge EDGES.
   // attempt to reduce small triangles to degeneracy (actually sharing all 3 pts)
-  for( int i = 0 ; i < indices.size() ; i+=3 )
+  for( int indexNo = 0 ; indexNo < indices.size() ; indexNo+=3 )
   {
     // 3 edges per tri (group of 3 verts)
     for( int eNo=0 ; eNo < 3 ; eNo++ )
     {
       // [0,1], [1,2], [2,0]
-      int i1 = indices[i + eNo] ;
-      int i2 = indices[i + (eNo+1)%3] ;
+      int i1 = indices[indexNo + eNo] ;
+      int i2 = indices[indexNo + (eNo+1)%3] ;
 
-      Vector3f edge = iVerts[i1].pos-iVerts[i2].pos ;
+      Vector3f a=iVerts[i1].pos, b=iVerts[i2].pos;
+      Vector3f edge = a-b ;
       
       // tolerance is the max size edge to collapse
       if( edge.len() < tol )
       {
-        // CHANGE first vertex's value to new avg value
-        Vector3f newPt = ( iVerts[i1].pos + iVerts[i2].pos ) / 2 ;
+        // get new avg value
+        Vector3f newPt = ( a+b ) / 2 ;
         Vector3f newNormal = ( iVerts[i1].normal + iVerts[i2].normal ).normalize() ;
 
-        // if a collapsed edge has a neighbour,
-        // then you must also collapse the neighbour
-        // and lock it against its wall
+        // if a vertex from the (i1,i2) pair is ON A CORNER, then you MUST merge INTO THE CORNER
+        // (ie keep the corner vertex and delete the other one).
+        if( vertexWallHits[i1].size() >= 2 )
+        {
+          /// i1 is a CORNER
+          newPt = a;//i1
+        }
+        else if( vertexWallHits[i2].size() >= 2 )
+        {
+          /// i2 is a CORNER
+          newPt = b;//i2
+        }
+        else if( vertexWallHits[i1].size() == 1 && vertexWallHits[i2].size() == 1 )
+        {
+          // if both vertices are on the SAME EDGE, then merge normally.
+          if( vertexWallHits[i1][0] == vertexWallHits[i2][0] ) // same edge
+          {
+            // The same merge will happen on the opposite side and it won't move
+            // AWAY from the edge as a result of the merge at all.
+            newPt = ( a+b ) / 2 ;
+          }
+          else
+          {
+            // well, you're trying to collapse an edge that straddles a corner.
+            // this is not allowed
+            //iVerts[i1].color=iVerts[i2].color=Red ; // so you can see this was skipped.
+            skip ;
+          }
+        }
+        else if( vertexWallHits[i1].size() ) // ONLY a is a wall hit
+          newPt = a ;
+        else if( vertexWallHits[i2].size() ) // ONLY b is a wall hit
+          newPt = b ;
         
-        Neighbour &n1=iVertsNeighbours[i1], &n2=iVertsNeighbours[i2];
-        if( n1.neighbour != -1 && n2.neighbour != -1 )
-        {
-          // you are merging an edge that sits on the same endwall
-          // The whole EDGE is on a neighbour border.  that means
-          // you have to merge BOTH verts at the other side as well.
-          // (BUT, this also means that those 2 verts will merge on their own too).
-          //iVerts[n1.neighbour].color = iVerts[n2.neighbour].color = Orange;
-        }
-        
-        if( n1.neighbour != -1 )
-        {
-          // newPt needs to be NAILED to the axis that i1 was original against.
-          // If I am on the NX wall, then my x value MUST be nailed at -worldSize/2 IN X.
-          //printf( "i1's original axisIndex val %f, making it %f\n",
-          //  newPt.elts[ n1.axisIndex ],
-          //  NeighbourOffsets[n1.edgeSide].elts[ n1.axisIndex ]/2 ) ;
-          newPt.elts[ n1.axisIndex ] = NeighbourOffsets[n1.edgeSide].elts[ n1.axisIndex ]/2 ;
-          //iVerts[n1.neighbour].color = Green ;
-        }
-        if( n2.neighbour != -1 )
-        {
-          // if n2 enforces this constraint, so let it.
-          newPt.elts[ n2.axisIndex ] = NeighbourOffsets[n2.edgeSide].elts[ n2.axisIndex ]/2 ;
-          //iVerts[n2.neighbour].color = Red ;
-        }
-
-        if( n1.neighbour != -1 )
-        {
-          // What i'm doing here is forcing the NEIGHBOR at the other side
-          // to take the same value as newPt.  This has to be done to prevent
-          // breaks in the mesh at the seams.
-          iVerts[n1.neighbour].pos = newPt - NeighbourOffsets[n1.edgeSide];
-          iVerts[n1.neighbour].normal = newNormal ;
-          //iVerts[n1.neighbour].color = Red ;
-        }
-        if( n2.neighbour != -1 )
-        {
-          iVerts[n2.neighbour].pos = newPt - NeighbourOffsets[n2.edgeSide];
-          iVerts[n2.neighbour].normal = newNormal ;
-          //iVerts[n2.neighbour].color = Red ;
-        }
-        
+          
         iVerts[i1].pos = newPt ;
         iVerts[i1].normal = newNormal ;
 
@@ -1309,61 +1184,11 @@ void genVizMarchingCubes()
     }
   }
 
-  iVerts.swap( rebuiltiVerts ) ;
+  verts.swap( rebuiltiVerts ) ;
   indices.swap( rebuiltIndices ) ;
-
-  // SNAP/force equal the edges
-  for( int i = 0 ; i < iVertsNeighbours.size() ; i++ )
-  {
-  }
 
   printf( "%d vertices converted to %d vertices and %d indices\n", verts.size(), iVerts.size(), indices.size() ) ;
   
-}
-
-void genVizPunchthru()
-{
-  punchthru.clear() ;
-  punchthru.resize( voxels.size() ) ;
-
-  for( int k = 0 ; k < slabs ; k++ )
-  {
-    for( int j = 0 ; j < rows ; j++ )
-    {
-      for( int i = 0 ; i < cols ; i++ )
-      {
-        Vector3i dex( i,j,k ) ;
-        int idex = dex.index(cols,rows) ;
-        float val = voxels[ idex ].v ;
-        
-        // Measure the isosurface breaks in 26 directions.
-        //punchthru[dex.index(cols,rows)]. ;
-        for( int dirIndex = 0 ; dirIndex < IsosurfacePunchthruSet::Directions.size() ; dirIndex++ )
-        {
-          const Vector3i& dir = IsosurfacePunchthruSet::Directions[dirIndex] ; // GET A DIRECTION. ONE DIRECTION.
-          Vector3i adjCell = dex + dir ;    // GET THE IJK INDEX OF THE ADJACENT CELL IN THIS DIRECTION
-          adjCell.wrap( cols,rows,slabs ) ; // MAKE SURE IS IN BOUNDS. WRAP AT BORDERS
-          float adjVal = voxels[ adjCell.index(cols,rows) ].v ;
-
-          float t = unlerp( isosurface, val, adjVal ) ;
-          if( isBetween( t, 0.f, 1.f ) )
-          {
-            // BROKE THE SURFACE
-            float diff = adjVal - val ; //+ if value INCREASES towards adjVal.
-            // this is the amount you need to "add" to val to GET adjVal.
-            //- if value GOING DOWN
-            // like a type of derivative
-            punchthru[idex].directedPunchthrus[dirIndex] = new IsosurfacePunchthru( dex, dirIndex, t, diff ) ;
-            
-            Vector3f voxelCenter = (offset + dex)*gridSizer ;
-            Vector3f p2 = (offset + dex + dir)*gridSizer ;
-            Vector3f p = Vector3f::lerp( t, voxelCenter, p2 ) ;
-            pt( p, 0.25, Vector4f(0.8) ) ;
-          }
-        }
-      }
-    }
-  }
 }
 
 void genVizFromVoxelData()
@@ -1372,15 +1197,17 @@ void genVizFromVoxelData()
   verts.clear() ;
   gradients.clear() ;
   debugLines.clear() ;
-  tris.clear() ;
 
   // GENERATE THE VISUALIZATION AS POINTS
   //genVizPunchthru() ;
   
   // ISOSURFACE GENERATION!
-  //genVizMarchingTets() ; // not as good
+  //genVizMarchingTets() ; // not as good.  it leaves holes right now,
+  // and the mesh quality is MUCH worse (many slivers).
   genVizMarchingCubes() ;
   
+
+  smoothMesh() ;
 }
 
 void genVoxelData()
@@ -1414,78 +1241,13 @@ void genVoxelData()
   }
 }
 
-void genPointsRandomly()
-{
-  verts.clear() ;
-  randPts.clear() ;
-
-  for( int i = 0 ; i < cols*rows*slabs ; i++ )
-  {
-    Vector3f p = Vector3f::random() ;
-    float noise = Perlin::pnoise( p.x,p.y,p.z, pw, 1,1,1, 8 ) ;
-    if( isNear( noise, isosurface, 0.01 ) )
-      randPts.push_back( (p-.5)*worldSize ) ;
-  }
-
-  for( int i = 0 ; i < randPts.size() ; i++ )
-  {
-    pt( randPts[i], 0.1, Blue ) ; /// also viz here
-  }
-
-}
-
-void initDirections()
-{
-  #if 0
-  for( int k = -1 ; k <= 1 ; k++ )
-  for( int j = -1 ; j <= 1 ; j++ )
-  for( int i = -1 ; i <= 1 ; i++ )
-    IsosurfacePunchthruSet::Directions.push_back( Vector3i( i, j, k ) ) ;
-  #else
-  IsosurfacePunchthruSet::addDirection( Vector3i( 1, 0, 0 ) ) ;  //0
-  IsosurfacePunchthruSet::addDirection( Vector3i( 0, 1, 0 ) ) ;  //1
-  IsosurfacePunchthruSet::addDirection( Vector3i( 0, 0, 1 ) ) ;  //2
-  
-  IsosurfacePunchthruSet::addDirection( Vector3i( -1,  0,  0 ) ) ; //3
-  IsosurfacePunchthruSet::addDirection( Vector3i(  0, -1,  0 ) ) ; //4
-  IsosurfacePunchthruSet::addDirection( Vector3i(  0,  0, -1 ) ) ; //5
-
-  // UPPER NEIGHBOR, LEFT NEIGHBOUR,  LEFT NEIGHBOUR, LOWER NEIGHBOUR
-  int px[4] = { 1, 2,  2, 4 } ;
-  IsosurfacePunchthruSet::addNeighbours( 0, px, 4 ) ;
-  
-  // y has NO NEIGHBOURS listed.
-  
-  int pz[4] = { 1, 3,  3, 4 } ;
-  IsosurfacePunchthruSet::addNeighbours( 2, pz, 4 ) ;
-
-  int nx[4] = { 1, 5,  5, 4 } ;
-  IsosurfacePunchthruSet::addNeighbours( 3, nx, 4 ) ;
-
-  int nz[4] = { 1, 0,  0, 4 } ;
-  IsosurfacePunchthruSet::addNeighbours( 5, nz, 4 ) ;
-
-  //IsosurfacePunchthruSet::DirsNeighbours.push_back( 
-  #endif
-  for( int i = 0 ; i < IsosurfacePunchthruSet::Directions.size() ; i++ )
-  {
-    Vector3i p = IsosurfacePunchthruSet::Directions[i] + 1 ; // ADD ONE WHEN GETTING INDEX
-    printf( "(%d,%d,%d) index %d\n", p.x, p.y, p.z, p.index( 3, 3 ) ) ;
-  }
-}
-
 void regen()
 {
   offset = Vector3f( -cols/2.f, -rows/2.f, -slabs/2.f ) ;
   gridSizer = Vector3f(worldSize) / Vector3f( cols,rows,slabs ) ;
 
-  if( voxelGenMode )
-  {
-    genVoxelData() ;    
-    genVizFromVoxelData() ;
-  }
-  else
-    genPointsRandomly() ;
+  genVoxelData() ;    
+  genVizFromVoxelData() ;
 }
 
 void init() // Called before main loop to set up the program
@@ -1540,6 +1302,51 @@ void keys()
 
 }
 
+
+void drawElements( int renderMode, vector<int> indices )
+{
+  if( repeats )
+  {
+    for( int i = -1 ; i <= 1 ; i++ )
+    {
+      for( int j = -1 ; j <= 1 ; j++ )
+      {
+        glPushMatrix();
+        glTranslatef( i*worldSize, j*worldSize,0 ) ;
+        glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
+        glPopMatrix();
+      }
+    }
+  }
+  else
+  {
+    // draw it once
+    glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
+  }
+}
+
+void drawBoundArray( int renderMode, int size )
+{
+  if( repeats )
+  {
+    for( int i = -1 ; i <= 1 ; i++ )
+    {
+      for( int j = -1 ; j <= 1 ; j++ )
+      {
+        glPushMatrix();
+        glTranslatef( i*worldSize, j*worldSize,0 ) ;
+        glDrawArrays( renderMode, 0, size ) ;
+        glPopMatrix();
+      }
+    }
+  }
+  else
+  {
+    // draw it once
+    glDrawArrays( renderMode, 0, size ) ;
+  }
+}
+
 void draw()
 {
   keys() ;
@@ -1582,10 +1389,14 @@ void draw()
 
   Vector4f lightPos0, lightPos1, lightPos2, lightPos3 ;
   static float ld = worldSize ;
-  lightPos0 = Vector4f(  ld,  ld/2,  ld, 1 ) ;
-  lightPos1 = Vector4f(  ld,  ld,  ld, 1 ) ;
-  lightPos2 = Vector4f(   0,  ld,   0, 1 ) ;
-  lightPos3 = Vector4f( -ld,   0,   0, 1 ) ;
+  lightPos0 = Vector4f(  ld,  ld/2, ld, 1 ) ;
+  lightPos1 = Vector4f(  ld,  ld,   ld, 1 ) ;
+  lightPos2 = Vector4f(   0,  ld,    0, 1 ) ;
+  lightPos3 = Vector4f( -ld,   0,    0, 1 ) ;
+
+  static float r = 0.f;
+  r += 0.0001f;
+  lightPos0.xyz() = Matrix3f::rotationY( r ) * lightPos0.xyz() ;
   
   glLightfv( GL_LIGHT0, GL_POSITION, &lightPos0.x ) ;
   glLightfv( GL_LIGHT1, GL_POSITION, &lightPos1.x ) ;
@@ -1598,16 +1409,24 @@ void draw()
   glLightfv( GL_LIGHT1, GL_DIFFUSE, white ) ;
   glLightfv( GL_LIGHT2, GL_DIFFUSE, white ) ;
   glLightfv( GL_LIGHT3, GL_DIFFUSE, white ) ;
+  Vector4f spec(1,1,1,25) ;
+  glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &spec.x ) ;
+  glMaterialf( GL_FRONT_AND_BACK, GL_SHININESS, spec.w ) ;
+  
+  // visualize the light
+  glDisable( GL_LIGHTING ) ;
+  glPushMatrix();
+  glTranslatef( lightPos0.x, lightPos0.y, lightPos0.z ) ;
+  glutSolidSphere( worldSize/10, 16, 16 ) ;
+  glPopMatrix() ;
+  glEnable( GL_LIGHTING ) ;
 
   glEnableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
   glEnableClientState( GL_NORMAL_ARRAY ) ;  CHECK_GL ;
   glEnableClientState( GL_COLOR_ARRAY ) ;  CHECK_GL ;
   
-  Vector4f spec(1,1,1,25) ;
-  glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &spec.x ) ;
-  glMaterialf( GL_FRONT_AND_BACK, GL_SHININESS, spec.w ) ;
   
-  if( verts.size() && showCubes )
+  if( verts.size() )
   {
     int renderMode = renderPts ? GL_POINTS : GL_TRIANGLES ;
     int ptsToRender = verts.size() ;
@@ -1615,7 +1434,8 @@ void draw()
       ptsToRender = ptsToRender - ptsToRender%3 ;// make sure is mult 3
     //glDepthMask( 0 ) ;
 
-    if( !indices.size() )
+    
+    if( !indices.size() ) // NO INDEX BUFFER
     {
       // vertex arrays with no index buffer
       glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNC ), &verts[0].pos ) ;
@@ -1640,63 +1460,37 @@ void draw()
     }
     else
     {
-      // Use the index buffer
-      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNC ), &iVerts[0].pos ) ;
-      glNormalPointer( GL_FLOAT, sizeof( VertexPNC ), &iVerts[0].normal ) ;
-      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNC ), &iVerts[0].color ) ;
+      // Use the index buffer if it exists
+      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNC ), &verts[0].pos ) ;
+      glNormalPointer( GL_FLOAT, sizeof( VertexPNC ), &verts[0].normal ) ;
+      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNC ), &verts[0].color ) ;
 
-      if( repeats )
-      {
-        for( int i = -1 ; i <= 1 ; i++ )
-        {
-          for( int j = -1 ; j <= 1 ; j++ )
-          {
-            glPushMatrix();
-            glTranslatef( i*worldSize, j*worldSize,0 ) ;
-            glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
-            glPopMatrix();
-          }
-        }
-      }
-      else
-      {
-        // draw it once
-        glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
-      }
+      drawElements( GL_TRIANGLES, indices ) ;
     }
     //glDepthMask( 1 ) ;
   }
   
   glDisableClientState( GL_NORMAL_ARRAY ) ;
-  
-  if( tris.size() && showTris )
-  {
-    glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &tris[0].pos ) ;
-    glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &tris[0].color ) ;
-    glDrawArrays( GL_TRIANGLES, 0, (int)tris.size() ) ;
-  }
-
   glDisable( GL_LIGHTING ) ;
 
   if( showGradients )
   {
     glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &gradients[0].pos ) ;
     glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &gradients[0].color ) ;
-    glDrawArrays( GL_LINES, 0, (int)gradients.size() ) ;
+
+    drawBoundArray( GL_LINES, gradients.size() ) ;
   }
   if( debugLines.size() )
   {
     glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &debugLines[0].pos ) ;
     glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &debugLines[0].color ) ;
-    glDrawArrays( GL_LINES, 0, (int)debugLines.size() ) ;
+    
+    drawBoundArray( GL_LINES, debugLines.size() ) ;
   }
   glDisableClientState( GL_VERTEX_ARRAY ) ;
   glDisableClientState( GL_COLOR_ARRAY ) ;
   
 
-
-  
-  
   
   //TEXT
   glMatrixMode( GL_MODELVIEW ) ;
@@ -1774,8 +1568,7 @@ void keyboard( unsigned char key, int x, int y )
 
   case '3':
     renderPts = !renderPts ;
-    if( voxelGenMode )
-      genVizFromVoxelData() ;
+    genVizFromVoxelData() ;
     break ;
     
   case '4':
@@ -1876,10 +1669,6 @@ void keyboard( unsigned char key, int x, int y )
     for( int i = 0 ;  i < verts.size() ; i++ )
       addDebugLine( verts[i].pos, Black, verts[i].pos+verts[i].normal*1, verts[i].color ) ;
     break; 
-  case 'M':
-    for( int i = 0 ;  i < iVerts.size() ; i++ )
-      addDebugLine( iVerts[i].pos, Black, iVerts[i].pos+iVerts[i].normal*1, iVerts[i].color ) ;
-    break; 
   case 'p':
     if( renderPts )
     {
@@ -1890,8 +1679,7 @@ void keyboard( unsigned char key, int x, int y )
     else
     {
       cubeSize += 1 ;
-      if( voxelGenMode )
-        genVizFromVoxelData() ;
+      genVizFromVoxelData() ;
     } 
     break ;
   case 'P':
@@ -1904,14 +1692,10 @@ void keyboard( unsigned char key, int x, int y )
     else
     {
       cubeSize -= 1 ;
-      if( voxelGenMode )
-        genVizFromVoxelData() ;
+      genVizFromVoxelData() ;
     }
     break ;
   case 'r': repeats = !repeats ; break ;
-
-  case 't': showTris = !showTris ; break ;
-  case 'T': showCubes = !showCubes ; break ;
 
   case 27:
     exit(0);

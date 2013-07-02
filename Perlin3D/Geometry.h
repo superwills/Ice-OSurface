@@ -2,6 +2,7 @@
 #define GEOMETRY_H
 
 #include "GLUtil.h"
+#include "Vectorf.h"
 
 struct Geometry
 {
@@ -392,6 +393,32 @@ struct Geometry
     addTriWithNormal( verts, A, C, D, color ) ;
     addTriWithNormal( verts, B, D, C, color ) ;
   }
+
+  // just to see what those 5 tets stuck together in a cube look like
+  template <typename T> static void gen5Tets( vector<T>& verts, const Vector3f& center )
+  {
+    float s = 5 ;
+    /*
+      C----G
+     /|   /|
+    D-A--H E
+    |/   |/
+    B----F
+    */
+    Vector3f A( -s, -s, -s ),  B( -s, -s,  s ),  C( -s,  s, -s ),  D( -s,  s,  s ),
+             E(  s, -s, -s ),  F(  s, -s,  s ),  G(  s,  s, -s ),  H(  s,  s,  s ) ;
+  
+    A+=center,  B+=center,  C+=center,  D+=center,
+    E+=center,  F+=center,  G+=center,  H+=center ;
+
+    Geometry::addTet( verts, A, D, C, G, Vector4f( 0,0,1,0.5 ) ) ;
+    Geometry::addTet( verts, E, G, F, A, Vector4f( 0,1,0,0.5 ) ) ;
+    Geometry::addTet( verts, H, D, F, G, Vector4f( 0.76,0.05,0.18,0.5 ) ) ;
+    Geometry::addTet( verts, F, D, A, G, Vector4f( 1,1,0,0.5 ) ) ; // MIDDLE TET
+    Geometry::addTet( verts, B, D, A, F, Vector4f( 1,0,0,0.5 ) ) ;
+  
+  }
+
   
   template <typename T> static void addQuadGenUVNormal( vector<T>& verts,
     const T& A, const T& B, const T& C, const T& D,
