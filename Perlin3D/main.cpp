@@ -1,7 +1,7 @@
 /*
 
   https://github.com/superwills/Ice-OSurface
-  version 0.9 (almost working), July 1 2013 4:26p
+  version 1.0 July 2 2013 7:30p
 
   Copyright (C) 2013 William Sherif
 
@@ -61,7 +61,7 @@ Vector4f AxisEdgeColors[] = {
 // YOUR AXIS INDEX is AxisEdge/2 (PX,NX=>0, PY,NY=>1, PZ,NZ=>2)
 
 // You need a fat epsilon for the edge-collapsing vertex merge. 1e-6f is TOO NARROW
-float EPS = 1e-3f;
+float EPS = 1e-1f;
 float w=768.f, h=768.f ;
 static float mx, my, sbd=150.f,
   pw=2.59, //0.58 
@@ -69,9 +69,12 @@ static float mx, my, sbd=150.f,
   tol=0.1,
   cubeSize=100.f ;
 
-#define SOLID 0
+bool SOLID=0;
+
+Vector4f tetColor(0,0,0.5,1);
 int cols=10,rows=10,slabs=10 ;
 float worldSize=200;
+
 
 // the offset appliied to the voxel grid to center it in world space
 Vector3f offset( -cols/2.f, -rows/2.f, -slabs/2.f ) ;
@@ -159,7 +162,11 @@ Vector3f getCutPoint( const Vector3i& A, const Vector3i& B )
   float vA = getVoxel( A ) ; // REDUNDANT
   float vB = getVoxel( B ) ; // REDUNDANT
   
+  // Get the `t` that represents "% of the way from vA to vB"
   float tAB = unlerp( isosurface, vA, vB ) ;
+
+  // 0 means @ vA.  1 means @ vB.  Outside of this range means
+  // before vA or beyond vB (error).
   if( !isBetween( tAB, 0.f, 1.f ) )
   {
     printf( "ERROR: CUT POINT %f OOB\n", tAB ) ;
@@ -171,26 +178,27 @@ Vector3f getCutPoint( const Vector3i& A, const Vector3i& B )
 
 void cutTet1Out( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3i& D )
 {
-  // C,D is OUT OF SURFACE.
-  // Ge t the 3 cut points
+  // D is OUT OF SURFACE.
+  // Get the 3 cut points
   Vector3f cutAD = getCutPoint( A, D ) ;
   Vector3f cutCD = getCutPoint( C, D ) ;
   Vector3f cutBD = getCutPoint( B, D ) ;
 
-  #if SOLID
-  //Geometry::triPrism( verts, getP(A)+Vector3f::random(), getP(B)+Vector3f::random(), getP(C)+Vector3f::random(),
-  //  cutAD+Vector3f::random(), cutCD+Vector3f::random(), cutBD+Vector3f::random(), Vector4f::random() ) ;
-  Geometry::triPrism( verts, getP(A), getP(B), getP(C),   cutAD, cutCD, cutBD, Blue ) ;
-  #else
-  ////Geometry::addTriWithNormal( verts, getP(A), getP(B), getP(C), Blue ) ;
-  Geometry::addTriWithNormal( verts, cutAD, cutCD, cutBD, Blue ) ; // SHOW ONLY THE CUT FACE
-  #endif
+  if( SOLID )
+    //Geometry::triPrism( verts, getP(A)+Vector3f::random(), getP(B)+Vector3f::random(), getP(C)+Vector3f::random(),
+    //  cutAD+Vector3f::random(), cutCD+Vector3f::random(), cutBD+Vector3f::random(), Vector4f::random() ) ;
+    Geometry::triPrism( verts, getP(A), getP(B), getP(C),   cutAD, cutCD, cutBD, tetColor ) ;
+  else
+    ////Geometry::addTriWithNormal( verts, getP(A), getP(B), getP(C), tetColor ) ;
+    Geometry::addTriWithNormal( verts, cutAD, cutCD, cutBD, tetColor ) ; // SHOW ONLY THE CUT FACE
+  
 }
 
 // ABC wound CCW, D is out.
 void cutTet2Out( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3i& D )
 {
-  // D is OUT OF SURFACE.
+  // C,D is OUT OF SURFACE.
+
   // Get the 4 cut points
   Vector3f cutAC = getCutPoint( A, C ) ;
   Vector3f cutAD = getCutPoint( A, D ) ;
@@ -200,13 +208,14 @@ void cutTet2Out( const Vector3i& A, const Vector3i& B, const Vector3i& C, const 
   //Geometry::triPrism( verts, getP(B)+Vector3f::random(), cutBD+Vector3f::random(), cutBC+Vector3f::random(),
   //  getP(A)+Vector3f::random(), cutAC+Vector3f::random(), cutAD+Vector3f::random(), Vector4f::random() ) ;
   
-  #if SOLID
-  Geometry::triPrism( verts, getP(B), cutBD, cutBC,   getP(A), cutAC, cutAD, Blue ) ;
-  #else
-  //Geometry::addTriWithNormal( verts, getP(A), getP(B), getP(C), Blue ) ;
-  Geometry::addTriWithNormal( verts, cutAC, cutBC, cutBD, Blue ) ;
-  Geometry::addTriWithNormal( verts, cutAC, cutBD, cutAD, Blue ) ;
-  #endif
+  if( SOLID )
+    Geometry::triPrism( verts, getP(B), cutBD, cutBC,   getP(A), cutAC, cutAD, tetColor ) ;
+  else
+  {
+    //Geometry::addTriWithNormal( verts, getP(A), getP(B), getP(C), tetColor ) ;
+    Geometry::addTriWithNormal( verts, cutAC, cutBC, cutBD, tetColor ) ;
+    Geometry::addTriWithNormal( verts, cutAC, cutBD, cutAD, tetColor ) ;
+  }
 }
 
 void cutTet3Out( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3i& D )
@@ -216,13 +225,14 @@ void cutTet3Out( const Vector3i& A, const Vector3i& B, const Vector3i& C, const 
   Vector3f cutAC = getCutPoint( A, C ) ;
   Vector3f cutAD = getCutPoint( A, D ) ;
 
-  #if SOLID
-  //Geometry::addTet( verts, getP(A)+Vector3f::random(), cutAB+Vector3f::random(), 
-  //  cutAC+Vector3f::random(), cutAD+Vector3f::random(), Vector4f::random() ) ;
-  Geometry::addTet( verts, getP(A), cutAB, cutAC, cutAD, Blue ) ;
-  #else
-  Geometry::addTriWithNormal( verts, cutAB, cutAD, cutAC, Blue ) ;
-  #endif
+  if( SOLID )
+  {
+    //Geometry::addTet( verts, getP(A)+Vector3f::random(), cutAB+Vector3f::random(), 
+    //  cutAC+Vector3f::random(), cutAD+Vector3f::random(), Vector4f::random() ) ;
+    Geometry::addTet( verts, getP(A), cutAB, cutAC, cutAD, tetColor ) ;
+  }
+  else
+    Geometry::addTriWithNormal( verts, cutAB, cutAD, cutAC, tetColor ) ;
 }
 
 void tet( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3i& D )
@@ -238,6 +248,8 @@ void tet( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3
     //if( !tooDeep( vA ) && tooDeep( vB ) && tooDeep( vC ) && tooDeep( vD ) )
     //Geometry::addTet( verts, getP(A), getP(B), getP(C), getP(D), Vector4f( 0,0,1,1 ) ) ;
   }
+
+  // 3 are in the surface
   else if( inSurface( vA ) && inSurface( vB ) && inSurface( vC ) )
     cutTet1Out( A, B, C, D ) ;
   else if( inSurface( vA ) && inSurface( vD ) && inSurface( vB ) )
@@ -284,18 +296,12 @@ void genVizMarchingTets()
         Vector3i A=dex+Vector3i(0,0,0), B=dex+Vector3i(0,0,1), C=dex+Vector3i(0,1,0), D=dex+Vector3i(0,1,1),
                  E=dex+Vector3i(1,0,0), F=dex+Vector3i(1,0,1), G=dex+Vector3i(1,1,0), H=dex+Vector3i(1,1,1);
         
-        // There are 5 tetrahedra that may be rendered.
-        // These are the tetrahedra:
-        // A, D, C, G
-        // E, G, F, A
-        // H, D, F, G
-        // F, D, A, G
-        // B, D, A, F
-        tet( A, D, C, G ) ;
-        tet( E, G, F, A ) ;
-        tet( H, D, F, G ) ;
-        tet( F, D, A, G ) ;
-        tet( B, D, A, F ) ;
+        tet( A, B, D, E ) ;
+        tet( A, D, C, E ) ;
+        tet( D, G, C, E ) ;
+        tet( D, H, G, E ) ;
+        tet( B, F, D, E ) ;
+        tet( F, H, D, E ) ;
       }
     }
   }
@@ -1028,32 +1034,42 @@ void smoothMesh()
   vertexWallHits.resize( iVerts.size() ) ;
   wallToVertexHits.resize( 6 ) ;
 
+  // -2*neg+1 gives: 0=>+1, 1=>-1
+  #define WALLVALUE(WALLSIDE) ((-2*(WALLSIDE%2)+1)*worldSize/2.f)
+
   for( int i = 0 ; i < iVerts.size() ; i++ )
   {
     for( int j = PX ; j <= NZ ; j++ )
     {
       int axis=j/2;
-      int neg=j%2 ; // negative axes are the odd ones 1,3,5.
-      float worldEdge = (-2*neg + 1) * worldSize/2.f ; // 0=>+1, 1=>-1
-      
+      //int neg=j%2 ; // negative axes are the odd ones 1,3,5.
+      //float worldEdge = (-2*neg + 1) * worldSize/2.f ; 
+      float worldEdge = WALLVALUE( j ) ;
+
       if( isNear( iVerts[i].pos.elts[axis], worldEdge, EPS ) )
       {
         // You're on this axis.
+        // "clean up" the edges.
+        iVerts[i].pos.elts[axis] = worldEdge ;
+
         vertexWallHits[i].push_back( j ) ;
         wallToVertexHits[j].push_back( i ) ; // store the reverse mapping as well
       }
     }
   }
   
+  bool showEdgeColors=0;
   for( int i = 0 ; i < iVerts.size() ; i++ )
   {
     if( vertexWallHits[i].size() )
     {
       // change the color.
-      //iVerts[i].color = Black ;
+      if( showEdgeColors )  iVerts[i].color = Black ;
+
       for( int axisEdge : vertexWallHits[i] )
       {
-        //iVerts[i].color.xyz() += AxisEdgeColors[axisEdge].xyz() ;
+        if( showEdgeColors )  iVerts[i].color.xyz() += AxisEdgeColors[axisEdge].xyz() ;
+        
         // get the neighbour and avg the normal
         int axis= axisEdge/2;
         int oAxis1 = OTHERAXIS1( axis ) ;
@@ -1141,12 +1157,18 @@ void smoothMesh()
             skip ;
           }
         }
-        else if( vertexWallHits[i1].size() ) // ONLY a is a wall hit
+        else if( vertexWallHits[i1].size() == 1 ) // ONLY a is a wall hit
+        {
           newPt = a ;
-        else if( vertexWallHits[i2].size() ) // ONLY b is a wall hit
+        }
+        else if( vertexWallHits[i2].size() == 1 ) // ONLY b is a wall hit
+        {
           newPt = b ;
-        
           
+          // Actually here we will use i2 instead of i1
+          swap( i1, i2 ) ;
+        }
+        
         iVerts[i1].pos = newPt ;
         iVerts[i1].normal = newNormal ;
 
@@ -1202,11 +1224,10 @@ void genVizFromVoxelData()
   //genVizPunchthru() ;
   
   // ISOSURFACE GENERATION!
-  //genVizMarchingTets() ; // not as good.  it leaves holes right now,
+  genVizMarchingTets() ; // not as good.  it leaves holes right now,
   // and the mesh quality is MUCH worse (many slivers).
-  genVizMarchingCubes() ;
+  //genVizMarchingCubes() ;
   
-
   smoothMesh() ;
 }
 
@@ -1356,10 +1377,11 @@ void draw()
   glEnable( GL_DEPTH_TEST ) ;
   glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT ) ;
 
-  #if SOLID
-  glEnable( GL_CULL_FACE ) ;
-  glCullFace( GL_BACK ) ;
-  #endif
+  if( SOLID )
+  {
+    glEnable( GL_CULL_FACE ) ;
+    glCullFace( GL_BACK ) ;
+  }
 
   glViewport( 0, 0, w, h ) ;
   glMatrixMode( GL_PROJECTION ) ;
@@ -1419,6 +1441,9 @@ void draw()
   glTranslatef( lightPos0.x, lightPos0.y, lightPos0.z ) ;
   glutSolidSphere( worldSize/10, 16, 16 ) ;
   glPopMatrix() ;
+  
+  
+  
   glEnable( GL_LIGHTING ) ;
 
   glEnableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
@@ -1572,11 +1597,11 @@ void keyboard( unsigned char key, int x, int y )
     break ;
     
   case '4':
-    EPS += 1e-4f ;
+    EPS += 1e-2f ;
     regen() ;
     break;
   case '$':
-    EPS -= 1e-4f ;
+    EPS -= 1e-2f ;
     regen() ;
     break ;
   case '=':

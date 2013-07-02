@@ -394,10 +394,15 @@ struct Geometry
     addTriWithNormal( verts, B, D, C, color ) ;
   }
 
+  // http://www.ics.uci.edu/~eppstein/projects/tetra/
   // just to see what those 5 tets stuck together in a cube look like
-  template <typename T> static void gen5Tets( vector<T>& verts, const Vector3f& center )
+  // YOU CANNOT USE 5 TET PACKING FOR MARCHING TETS.  THE REASON IS
+  // THE NEIGHBOURING TETRAHEDRA HAVE DIAGONALS GOING IN __OPPOSITE DIRECTIONS__ WHEN STACKED.
+  // THIS IS __NOT OK__ for achieving a space filling packing because then the isosurface
+  // punchthrus for adjacent cubes'o'tets will NOT be the same.
+  template <typename T> static void gen5Tets( vector<T>& verts, float s, const Vector3f& center )
   {
-    float s = 5 ;
+    s/=2;
     /*
       C----G
      /|   /|
@@ -416,8 +421,45 @@ struct Geometry
     Geometry::addTet( verts, H, D, F, G, Vector4f( 0.76,0.05,0.18,0.5 ) ) ;
     Geometry::addTet( verts, F, D, A, G, Vector4f( 1,1,0,0.5 ) ) ; // MIDDLE TET
     Geometry::addTet( verts, B, D, A, F, Vector4f( 1,0,0,0.5 ) ) ;
-  
   }
+
+  // http://graphics.cs.ucdavis.edu/~joy/ecs177/other-notes/SixTetrahedra.html
+  // This paper "Mysteries in Packing Regular Tetrahedra"
+  // http://www.ams.org/notices/201211/rtx121101540p.pdf  (free atm)
+  // has a diagram of the packing used here (figure 3)
+  // s is the size.
+  template <typename T> static void gen6Tets( vector<T>& verts, float s, const Vector3f& center )
+  {
+    // Notice how ALL the tets use vertex E.
+    s/=2;
+    /*
+      C----G
+     /|   /|
+    D-A--H E
+    |/   |/
+    B----F
+    */
+    // the cube you lay the tets in start in the [-s/2,s/2] cube (s was divided by 2 above)
+    // centered AT THE ORIGIN then you translate the entire cube.
+    Vector3f A( -s, -s, -s ),  B( -s, -s,  s ),  C( -s,  s, -s ),  D( -s,  s,  s ),
+             E(  s, -s, -s ),  F(  s, -s,  s ),  G(  s,  s, -s ),  H(  s,  s,  s ) ;
+  
+    A+=center,  B+=center,  C+=center,  D+=center,
+    E+=center,  F+=center,  G+=center,  H+=center ;
+
+    // LEFT /NX EDGE
+    Geometry::addTet( verts, A, B, D, E, Vector4f(   0,   1,   1, 0.5 ) ) ; //Teal
+    Geometry::addTet( verts, A, D, C, E, Vector4f(   0,   0,   1, 0.5 ) ) ; //Blue
+
+    // TOP
+    Geometry::addTet( verts, D, G, C, E, Vector4f(   1,   0,   1, 0.5 ) ) ; //Magenta
+    Geometry::addTet( verts, D, H, G, E, Vector4f(   0,   1,   0, 0.5 ) ) ; // Green
+
+    // FRONT
+    Geometry::addTet( verts, B, F, D, E, Vector4f(   1,   0,   0, 0.5 ) ) ; // red
+    Geometry::addTet( verts, F, H, D, E, Vector4f(   1,   1,   0, 0.5 ) ) ; // yellow
+  }
+
 
   
   template <typename T> static void addQuadGenUVNormal( vector<T>& verts,
