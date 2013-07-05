@@ -88,11 +88,16 @@
   <ItemGroup>
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="GLUtil.h" />
+    <ClInclude Include="MarchingCommon.h" />
+    <ClInclude Include="MarchingCubes.h" />
+    <ClInclude Include="MarchingTets.h" />
     <ClInclude Include="MersenneTwister.h" />
+    <ClInclude Include="Mesh.h" />
     <ClInclude Include="perlin.h" />
     <ClInclude Include="PointCloud.h" />
     <ClInclude Include="StdWilUtil.h" />
     <ClInclude Include="Vectorf.h" />
+    <ClInclude Include="VoxelGrid.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

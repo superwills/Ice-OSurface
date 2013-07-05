@@ -246,20 +246,6 @@ struct Vector3i
   Vector3i( int ix, int iy, int iz ):x(ix),y(iy),z(iz){}
   Vector3i( int iv ):x(iv),y(iv),z(iv){}
   
-  // I don't need to know how many slabs are in your set.
-  int index( int cols, int rows ) const
-  {
-    return x +  // col index=> directly to linear offset
-      y*cols +  // row index=> cols* gives linear offset
-      z*cols*rows ;// slab# => linear
-  }
-  void wrap( int cols, int rows, int slabs )
-  {
-    // modulus negative number not positive in C
-    x = (cols+x)%cols ;
-    y = (rows+y)%rows ;
-    z = (slabs+z)%slabs ;
-  }
   inline void print() const {
     printf( "(%d %d %d)",x,y,z ) ;
   }
@@ -315,22 +301,62 @@ struct Vector3i
   inline Vector3i operator*( const Vector3i& o ) const {
     return Vector3i(x*o.x,y*o.y,z*o.z);
   }
-  inline Vector3i operator*( float s ) const {
+  inline Vector3i operator*( int s ) const {
     return Vector3i(x*s,y*s,z*s);
   }
   inline Vector3i operator/( const Vector3i& o ) const {
     return Vector3i(x/o.x,y/o.y,z/o.z);
   }
-  inline Vector3i operator/( float s ) const {
+  inline Vector3i operator/( int s ) const {
     return Vector3i(x/s,y/s,z/s);
+  }
+  inline Vector3i operator%( const Vector3i& o ) const {
+    return Vector3i(x%o.x,y%o.y,z%o.z);
+  }
+  inline Vector3i operator%( int s ) const {
+    return Vector3i(x%s,y%s,z%s);
   }
   inline Vector3i cross( const Vector3i& o ) const {
     return Vector3i( y*o.z-o.y*z, z*o.x-x*o.z, x*o.y-o.x*y ) ;
   }
-  inline int dot( const Vector3i& o ) const{
+  inline int dot( const Vector3i& o ) const {
     return x*o.x+y*o.y+z*o.z ;
   }
   
+
+  // NON CONST
+  inline Vector3i& operator+=( const Vector3i& o ){
+    x+=o.x,y+=o.y,z+=o.z;
+    return *this ;
+  }
+  inline Vector3i& operator-=( const Vector3i& o ){
+    x-=o.x,y-=o.y,z-=o.z;
+    return *this ;
+  }
+  inline Vector3i& operator*=( const Vector3i& o ){
+    x*=o.x,y*=o.y,z*=o.z;
+    return *this ;
+  }
+  inline Vector3i& operator*=( int s ){
+    x*=s,y*=s,z*=s;
+    return *this ;
+  }
+  inline Vector3i& operator/=( const Vector3i& o ){
+    x/=o.x,y/=o.y,z/=o.z;
+    return *this ;
+  }
+  inline Vector3i& operator/=( int s ){
+    x/=s,y/=s,z/=s;
+    return *this ;
+  }
+  inline Vector3i& operator%=( const Vector3i& o ){
+    x%=o.x,y%=o.y,z%=o.z;
+    return *this ;
+  }
+  inline Vector3i& operator%=( int s ){
+    x%=s,y%=s,z%=s;
+    return *this ;
+  }
 } ;
 
 union Vector3f
@@ -2408,6 +2434,18 @@ inline RectF operator%( const Vector2f& percentage, RectF rect ) {
   return rect.pad( -amt ) ;
 }
 
+
+// >0 (+ve) means on + side of plane
+// =0 means in plane
+// <0 (-ve) means on - side of plane (side opposite normal)
+inline int planeSide( Vector3i* pts, int a, int b, int c, const Vector3i& testPoint )
+{
+  Vector3i AB = pts[b] - pts[a] ;
+  Vector3i AC = pts[c] - pts[a] ;
+  Vector3i n = AB.cross( AC ) ;
+  int dPlane = -n.dot( pts[a] ) ;
+  return n.dot( testPoint ) + dPlane ;
+}
 
 #endif
 
