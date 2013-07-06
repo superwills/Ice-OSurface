@@ -125,7 +125,8 @@ namespace MersenneTwister
 
   void initMersenneTwister()
   {
-      unsigned long init[4]={0x123, 0x234, 0x345, 0x456}, length=4;
+      unsigned long init[4]={0x123, 0x234, 0x345, 0x456} ;
+      int length=4;
       init_by_array(init, length);
   }
 } ;

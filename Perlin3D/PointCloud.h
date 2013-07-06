@@ -2,18 +2,13 @@
 #define POINTCLOUD_H
 
 #include "Vectorf.h"
+#include "MarchingCommon.h"
 
-struct PointCloud
+struct PointCloud : public IsosurfaceFinder
 {
   // Point cloud vars.
   static float ptSize, cubeSize ;
   static bool useCubes ;  // point clouds use cubes?
-
-  // The voxel grid I am operating on.
-  VoxelGrid *voxelGrid ;
-
-  // Pointers to arrays in caller program space
-  vector<VertexPNC> *verts ; // the vertex array into which to drop my results.
 
   // structures and code for creating the point cloud
   // with points at isosurface breakthroughs etc.
@@ -90,11 +85,9 @@ struct PointCloud
   vector< vector<int> > DirsNeighbours ;
   // Directions[i] has neighbours listed by DirsNeighbours[i][0]..DirsNeighbours[i][size]
 
-  PointCloud( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface )
+  PointCloud( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+    IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
-    voxelGrid = iVoxelGrid ;
-    verts = iVerts ;
-    isosurface = iIsosurface ;
     initDirections() ;
   }
 
@@ -110,7 +103,7 @@ struct PointCloud
   void genVizPunchthru()
   {
     punchthru.clear() ;
-    punchthru.resize( voxelGrid->voxels.size(), IsosurfacePunchthruSet( Directions.size() ) ) ;
+    punchthru.resize( voxelGrid->voxels.size(), IsosurfacePunchthruSet( (int)Directions.size() ) ) ;
 
     for( int k = 0 ; k < voxelGrid->dims.z ; k++ )
     {
@@ -144,7 +137,7 @@ struct PointCloud
               Vector3f voxelCenter = (voxelGrid->offset + dex)*voxelGrid->gridSizer ;
               Vector3f p2 = (voxelGrid->offset + dex + dir)*voxelGrid->gridSizer ;
               Vector3f p = Vector3f::lerp( t, voxelCenter, p2 ) ;
-              pt( p, 0.25, Vector4f(0.8) ) ;
+              pt( p, 0.25, baseColor ) ;
             }
           }
         }
@@ -162,7 +155,7 @@ struct PointCloud
   {
     if( forDirection >= DirsNeighbours.size() )
     {
-      printf( "%d oob DirsNeighbours (%d)\n", forDirection, DirsNeighbours.size() ) ;
+      printf( "%d oob DirsNeighbours (%d)\n", forDirection, (int)DirsNeighbours.size() ) ;
       return ;
     }
     for( int i = 0 ; i < len ; i++ )
@@ -193,11 +186,13 @@ struct PointCloud
     int nz[4] = { 1, 0,  0, 4 } ;
     addNeighbours( 5, nz, 4 ) ;
 
+    /*
     for( int i = 0 ; i < Directions.size() ; i++ )
     {
       Vector3i p = Directions[i] + 1 ; // ADD ONE WHEN GETTING INDEX
-      //printf( "(%d,%d,%d) index %d\n", p.x, p.y, p.z, p.index( 3, 3 ) ) ;
+      printf( "(%d,%d,%d) index %d\n", p.x, p.y, p.z, p.index( 3, 3 ) ) ;
     }
+    */
   }
 
   

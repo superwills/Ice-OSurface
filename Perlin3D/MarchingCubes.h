@@ -1,6 +1,8 @@
 #ifndef MARCHINGCUBES_H
 #define MARCHINGCUBES_H
 
+#include "MarchingCommon.h"
+
 // These are CW faces, LEFT, TOP, RIGHT.
 // If you wind a face using the order here, the face will be facing INTO the cube.
 static int adj[8][3] = {
@@ -8,23 +10,12 @@ static int adj[8][3] = {
   { 5,6,0 },{ 1,7,4 },{ 2,4,7 },{ 6,5,3 }
 } ; // each of the 8 verts has 4 neighbours. always.
 
-struct MarchingCubes
+struct MarchingCubes : public IsosurfaceFinder
 {
-  // The voxel grid I am operating on.
-  VoxelGrid *voxelGrid ;
-
-  // Pointers to arrays in caller program space
-  vector<VertexPNC> *verts ;
-
-  Vector4f cubeColor ;
-  bool SOLID ;
-
-  MarchingCubes(  VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color )
+  MarchingCubes( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+    IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
-    voxelGrid = iVoxelGrid ;
-    verts = iVerts ;
-    isosurface = iIsosurface ;
-    cubeColor = color ;
+    
   }
 
   /// MARCHING CUBES
@@ -124,14 +115,14 @@ struct MarchingCubes
 
     if( ia != -1 )
     {
-      benchTris( pts, a,b, ia,ib, nia,nib, revs, cubeColor ) ;
+      benchTris( pts, a,b, ia,ib, nia,nib, revs, baseColor ) ;
       return 1;
     }
     else
     {
       // they're not adjacent. 2 edge tris
-      cornerTri( pts, a, revs, cubeColor ) ;
-      cornerTri( pts, b, revs, cubeColor ) ;
+      cornerTri( pts, a, revs, baseColor ) ;
+      cornerTri( pts, b, revs, baseColor ) ;
       return 0 ;
     }
   }
@@ -244,11 +235,11 @@ struct MarchingCubes
       
       if( !revs )
       {
-        Geometry::addPentagonWithNormal( *verts, cutA, cutB1, cutB2, cutC2, cutC1, cubeColor ) ;
+        Geometry::addPentagonWithNormal( *verts, cutA, cutB1, cutB2, cutC2, cutC1, baseColor ) ;
       }
       else
       {
-        Geometry::addPentagonWithNormal( *verts, cutA, cutC1, cutC2, cutB2, cutB1, cubeColor ) ;
+        Geometry::addPentagonWithNormal( *verts, cutA, cutC1, cutC2, cutB2, cutB1, baseColor ) ;
       }
 
       return 2 ;
@@ -274,17 +265,17 @@ struct MarchingCubes
     if( ia.size() == 1 )
     {
       // 
-      benchTris( pts, a, b, ia[0], ib[0], nia, nib, revs, cubeColor ) ;
-      cornerTri( pts, c, revs, cubeColor ) ;
+      benchTris( pts, a, b, ia[0], ib[0], nia, nib, revs, baseColor ) ;
+      cornerTri( pts, c, revs, baseColor ) ;
     }
     else // ia.size() == 0
     {
-      cornerTri( pts, a, revs, cubeColor ) ;
-      cornerTri( pts, b, revs, cubeColor ) ;
-      cornerTri( pts, c, revs, cubeColor ) ;
+      cornerTri( pts, a, revs, baseColor ) ;
+      cornerTri( pts, b, revs, baseColor ) ;
+      cornerTri( pts, c, revs, baseColor ) ;
     }
 
-    return ia.size() ; // NO ADJACENCY.
+    return (int)ia.size() ; // NO ADJACENCY.
   }
 
   int adjacencyOf4( Vector3i* pts, int& a, int& b, int& c, int& d,
@@ -337,7 +328,7 @@ struct MarchingCubes
       Vector3f cutC = voxelGrid->getCutPoint( isosurface, pts[ c ], pts[ adj[c][ nic[0] ] ] ) ;
       Vector3f cutD = voxelGrid->getCutPoint( isosurface, pts[ d ], pts[ adj[d][ nid[0] ] ] ) ;
       
-      Geometry::addQuadWithNormal( *verts, cutA,cutB,cutC,cutD, cubeColor ) ;
+      Geometry::addQuadWithNormal( *verts, cutA,cutB,cutC,cutD, baseColor ) ;
       return 5 ; // DONE
     }
 
@@ -421,7 +412,7 @@ struct MarchingCubes
       Vector3f cutDC = voxelGrid->getCutPoint( isosurface, pts[d], pts[ adj[d][ nid[1] ] ] ) ;
       Vector3f cutDB = voxelGrid->getCutPoint( isosurface, pts[d], pts[ adj[d][ nid[0] ] ] ) ; // 0 by default
     
-      Geometry::addHexagonWithNormal( *verts, cutBC,cutBD,cutDB,cutDC,cutCD,cutCB, cubeColor ) ;
+      Geometry::addHexagonWithNormal( *verts, cutBC,cutBD,cutDB,cutDC,cutCD,cutCB, baseColor ) ;
 
       return 4 ;
     }
@@ -476,9 +467,9 @@ struct MarchingCubes
         Vector3f cutDA = voxelGrid->getCutPoint( isosurface, pts[ d ], pts[ adj[d][ nid[0] ] ] ) ; // could also use adj[a][ nia[0] ]
 
         if( !revs )
-          Geometry::addHexagonWithNormal( *verts, cutAD, cutC0, cutCB, cutBA, cutD0, cutDA, cubeColor ) ;
+          Geometry::addHexagonWithNormal( *verts, cutAD, cutC0, cutCB, cutBA, cutD0, cutDA, baseColor ) ;
         else
-          Geometry::addHexagonWithNormal( *verts, cutAD, cutDA, cutD0, cutBA, cutCB, cutC0, cubeColor ) ;
+          Geometry::addHexagonWithNormal( *verts, cutAD, cutDA, cutD0, cutBA, cutCB, cutC0, baseColor ) ;
         return 3 ;
       }
 
@@ -489,7 +480,7 @@ struct MarchingCubes
         else if( ic.size() == 0 ) SWAP( c,d ) ;
 
         // render the loner
-        cornerTri( pts, d, 0, cubeColor ) ;
+        cornerTri( pts, d, 0, baseColor ) ;
 
         // 
         forceShare( b,c, nib, nic, 0, 1 ) ;
@@ -504,7 +495,7 @@ struct MarchingCubes
         Vector3f cutC1 = voxelGrid->getCutPoint( isosurface, pts[ c ], pts[ adj[c][ nic[0] ] ] ) ;
         Vector3f cutC2 = voxelGrid->getCutPoint( isosurface, pts[ c ], pts[ adj[c][ nic[1] ] ] ) ;
       
-        Geometry::addPentagonWithNormal( *verts, cutA, cutB1, cutB2, cutC2, cutC1, cubeColor ) ;
+        Geometry::addPentagonWithNormal( *verts, cutA, cutB1, cutB2, cutC2, cutC1, baseColor ) ;
         return 2 ;
       }
     }
@@ -520,24 +511,24 @@ struct MarchingCubes
         // a--b
         //
         // c--d
-        benchTris( pts, a,b, ia[0],ib[0], nia,nib, 0, cubeColor ) ;
-        benchTris( pts, c,d, ic[0],id[0], nic,nid, 0, cubeColor ) ;
+        benchTris( pts, a,b, ia[0],ib[0], nia,nib, 0, baseColor ) ;
+        benchTris( pts, c,d, ic[0],id[0], nic,nid, 0, baseColor ) ;
       }
       else if( adj[a][ia[0]] == c )
       {
         // a--c
         //
         // b--d
-        benchTris( pts, a,c, ia[0],ic[0], nia,nic, 0, cubeColor ) ;
-        benchTris( pts, b,d, ib[0],id[0], nib,nid, 0, cubeColor ) ;
+        benchTris( pts, a,c, ia[0],ic[0], nia,nic, 0, baseColor ) ;
+        benchTris( pts, b,d, ib[0],id[0], nib,nid, 0, baseColor ) ;
       }
       else if( adj[a][ia[0]] == d )
       {
         // a--d
         //
         // b--c
-        benchTris( pts, a,d, ia[0],id[0], nia,nid, 0, cubeColor ) ;
-        benchTris( pts, b,c, ib[0],ic[0], nib,nic, 0, cubeColor ) ;
+        benchTris( pts, a,d, ia[0],id[0], nia,nid, 0, baseColor ) ;
+        benchTris( pts, b,c, ib[0],ic[0], nib,nic, 0, baseColor ) ;
       }
 
       return 1 ;
@@ -547,10 +538,10 @@ struct MarchingCubes
     {
       // RARE.
       // 4 LONERS.  Never revs b/c we used the 4 IN pieces.
-      cornerTri( pts, a, 0, cubeColor ) ;
-      cornerTri( pts, b, 0, cubeColor ) ;
-      cornerTri( pts, c, 0, cubeColor ) ;
-      cornerTri( pts, d, 0, cubeColor ) ;
+      cornerTri( pts, a, 0, baseColor ) ;
+      cornerTri( pts, b, 0, baseColor ) ;
+      cornerTri( pts, c, 0, baseColor ) ;
+      cornerTri( pts, d, 0, baseColor ) ;
 
       return 0 ;
     }
@@ -617,7 +608,7 @@ struct MarchingCubes
       else  a=out[0]; // only 1 vertex OUT.  the cut face
       // faces OUT of rest of the cube.
 
-      cornerTri( pts, a, revs, cubeColor ) ;
+      cornerTri( pts, a, revs, baseColor ) ;
     }
 
     // If SAME_FACE is false, they don't even share a face at all.

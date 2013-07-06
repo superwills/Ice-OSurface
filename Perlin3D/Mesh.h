@@ -5,6 +5,12 @@
 #include <vector>
 using namespace std ;
 
+Vector4f AxisEdgeColors[] = {
+  Vector4f(1,0,0,1), Vector4f(1,0,0,1),
+  Vector4f(0,1,0,1), Vector4f(0,1,0,1),
+  Vector4f(0,0,1,1), Vector4f(0,0,1,1)
+} ;
+
 struct Mesh
 {
   // Final array of vertices output by program (to draw)
@@ -39,7 +45,7 @@ struct Mesh
       if( jindex==-1 )
       {
         iVerts.push_back( verts[i] ) ; // another vertex
-        indices.push_back( iVerts.size() - 1 ) ;  // 
+        indices.push_back( (int)iVerts.size() - 1 ) ;  // 
       }
       else
       {
@@ -218,6 +224,13 @@ struct Mesh
     // You need to REBUILD the mesh now becaue the deleted vertices
     // that are never references STILL TAKE UP SPACES.  deleting them
     // shifts the array, so changes ALL the indices after the deleted elt.
+    rebuild() ;
+
+    //printf( "%d vertices converted to %d vertices and %d indices\n", verts.size(), iVerts.size(), indices.size() ) ;
+  }
+
+  void rebuild()
+  {
     vector<VertexPNC> rebuiltiVerts ;
     vector<int> rebuiltIndices ;
   
@@ -243,7 +256,7 @@ struct Mesh
         if( jindex==-1 )
         {
           rebuiltiVerts.push_back( verts[ ixs[iNo] ] ) ; // another vertex
-          rebuiltIndices.push_back( rebuiltiVerts.size() - 1 ) ;  // 
+          rebuiltIndices.push_back( (int)rebuiltiVerts.size() - 1 ) ;  // 
         }
         else
         {
@@ -256,12 +269,49 @@ struct Mesh
     verts.swap( rebuiltiVerts ) ;
     indices.swap( rebuiltIndices ) ;
 
-    //printf( "%d vertices converted to %d vertices and %d indices\n", verts.size(), iVerts.size(), indices.size() ) ;
-  
   }
 
-  void rebuild()
+  void texture()
   {
+    // Here I will create a very large GL texture.
+    // 3D perlin noise will be used to generate the values here.
+
+    // (not done)
+  }
+
+  void vertexTexture( float wTexture, int wTexturePeriod, const Vector3f& worldSize )
+  {
+    for( int i = 0 ; i < verts.size() ; i++ )
+    {
+      Vector3f sp = verts[i].pos ;
+      
+      //sp.normalize() ;
+      sp /= worldSize ;
+      
+      //float n = Perlin::pnoise( sinf(sp.x), cosf(2*sp.y), sp.z, tw.x, 2,2,2,2 ) ;
+      //float n = Perlin::pnoise( sinf(2*M_PI*sp.x), cosf(2*M_PI*sp.y), sp.z, tw.x, 2,2,1,8 ) ;
+      float n = Perlin::pnoise( sp.x, sp.y, sp.z, wTexture, 1,1,1,wTexturePeriod ) ;
+
+      //Vector3f color(
+      //  Perlin::noise( sp.x, sp.y, sp.z, tw.x ),
+      //  Perlin::noise( sp.x, sp.y, sp.z, tw.y ),
+      //  Perlin::noise( sp.x, sp.y, sp.z, tw.z )
+      //) ;
+      Vector3f color = Vector3f::cubicSpline( n, Vector3f( 0.45,0.34,0.54 ),
+        Vector3f( 0.87,0.1,0 ),
+        Vector3f( 0.66,0.24,0.2 ),
+        Vector3f( 0.55,0.21,0.1 )
+        
+      ) ;
+      
+      // Negative color is undefined
+      color.fabs() ;
+
+      // No extreme colors
+      //color.clampLen( 0.45f, 0.65f ) ;
+
+      verts[i].color.xyz() = color ;
+    }
   }
 } ;
 

@@ -39,6 +39,17 @@ using namespace std ;
 #define max3(x,y,z) max(max(x,y),z)
 #define min3(x,y,z) min(min(x,y),z)
 
+// if you have axis 0, these two defines give you 1 & 2, for example
+#define OTHERAXIS1(axis) ((axis+1)%3)
+#define OTHERAXIS2(axis) ((axis+2)%3)
+
+// code that is common to marching cubes/tets
+// For naming the axis edge a vertex is on
+//              0   1   2   3   4   5
+enum AxisEdge{ PX, NX, PY, NY, PZ, NZ } ;
+// EVEN AXES have (AxisEdge%2==0).
+// YOUR AXIS INDEX is AxisEdge/2 (PX,NX=>0, PY,NY=>1, PZ,NZ=>2)
+
 /// 7 .9's (0.9999999) is the FURTHEST something can be before disappearing
 // This is because 0.99999999 is 1.0 when converted to double. We use 6 9's just in case.
 const static float Z_FAR_AWAY = 0.9999f ;
@@ -235,10 +246,10 @@ inline void randSeed( unsigned long seed )
 
 inline void fillRandom( void* dst, int bytes )
 {
-  int* d = (int*)dst; // look at data as int32's
+  unsigned int* d = (unsigned int*)dst; // look at data as int32's
   int len= bytes/4; // last few may not be written
   for( int i = 0; i < len ; i++ )
-    d[i] = MersenneTwister::genrand_int32() ;
+    d[i] = (int)MersenneTwister::genrand_int32() ;
 }
 
 

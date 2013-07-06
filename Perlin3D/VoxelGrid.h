@@ -2,6 +2,7 @@
 #define VOXEL_H
 
 #include "Vectorf.h"
+#include "perlin.h"
 
 // handling for VOlumetrix piXEL (where pixel was PIXture ELement)
 struct Voxel
@@ -169,7 +170,7 @@ struct VoxelGrid
     return cutAB ;
   }
 
-  void genData()
+  void genData( float w, int wPeriod )
   {
     resize() ; // ensure voxel grid is right size.
 
@@ -183,17 +184,17 @@ struct VoxelGrid
           int dex = index(i,j,k);
           float fx=(float)i/dims.x, fy=(float)j/dims.y, fz=(float)k/dims.z ;
         
-          //voxels[ dex ].v = Perlin::sdnoise( fx*f1, fy*f1, fz*f1, pw, &d1.x, &d1.y, &d1.z, &d1.w ) ;
-          //voxels[ dex ].v += Perlin::sdnoise( fx*f2, fy*f2, fz*f2, pw, &d2.x, &d2.y, &d2.z, &d2.w ) ;
+          //voxels[ dex ].v = Perlin::sdnoise( fx*f1, fy*f1, fz*f1, w, &d1.x, &d1.y, &d1.z, &d1.w ) ;
+          //voxels[ dex ].v += Perlin::sdnoise( fx*f2, fy*f2, fz*f2, w, &d2.x, &d2.y, &d2.z, &d2.w ) ;
           //voxels[ dex ].d = d1 + d2 ;
 
-          voxels[ dex ].v = Perlin::pnoise( fx, fy, fz, pw, 1,1,1, pwPeriod ) ;
+          voxels[ dex ].v = Perlin::pnoise( fx, fy, fz, w, 1,1,1, wPeriod ) ;
 
           for( int i = 2 ; i <= 4 ; i *= 2 )
-            voxels[ dex ].v += Perlin::pnoise( fx*i, fy*i, fz*i, pw, i,i,i, pwPeriod ) ;
+            voxels[ dex ].v += Perlin::pnoise( fx*i, fy*i, fz*i, w, i,i,i, wPeriod ) ;
 
-          //voxels[ dex ].v = Perlin::noise( fx*f1, fy*f1, fz*f1, pw ) -
-          //                  fabsf( Perlin::noise( fx*f2, fy*f2, fz*f2, 10*pw ) ) ; //randFloat() ;
+          //voxels[ dex ].v = Perlin::noise( fx*f1, fy*f1, fz*f1, w ) -
+          //                  fabsf( Perlin::noise( fx*f2, fy*f2, fz*f2, 10*w ) ) ; //randFloat() ;
           //voxels[ dex ].v = Perlin::noise( sin(fx), cos(fy), sin(fz), w ) ; //randFloat() ;
         }
       }

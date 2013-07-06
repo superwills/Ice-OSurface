@@ -28,6 +28,7 @@
 
 */
 
+
 #ifdef _WIN32
 #include <stdlib.h> // MUST BE BEFORE GLUT ON WINDOWS
 #include <gl/glut.h>
@@ -35,67 +36,48 @@
 #include <GLUT/glut.h>
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
+#include <Carbon/Carbon.h>  // key input
 #endif
 #include "perlin.h"
 #include "GLUtil.h"
 #include "StdWilUtil.h"
 #include "Vectorf.h"
 #include "Geometry.h"
+#include "MarchingCommon.h"
 #include <vector>
 #include <functional>
 using namespace std;
-
-
-
-// For naming the axis edge a vertex is on
-//              0   1   2   3   4   5
-enum AxisEdge{ PX, NX, PY, NY, PZ, NZ } ;
-Vector4f AxisEdgeColors[] = {
-  Vector4f(1,0,0,1), Vector4f(1,0,0,1),
-  Vector4f(0,1,0,1), Vector4f(0,1,0,1),
-  Vector4f(0,0,1,1), Vector4f(0,0,1,1)
-} ;
-
-#define OTHERAXIS1(axis) ((axis+1)%3)
-#define OTHERAXIS2(axis) ((axis+2)%3)
-
-// EVEN AXES have (AxisEdge%2==0).
-// YOUR AXIS INDEX is AxisEdge/2 (PX,NX=>0, PY,NY=>1, PZ,NZ=>2)
-
-// You need a fat epsilon for the edge-collapsing vertex merge. 1e-6f is TOO NARROW
-float EPS = 1e-3f;
-float w=768.f, h=768.f ;
-static float mouseX, mouseY, sbd=150.f,
-  pw=2.59,//0.58 
-  isosurface=0.38, // the value of the isosurface
-  isosurfaceThickness=0.1 // how thick the isosurface is to be AROUND isosurface
-;
-static int pwPeriod=8;
-
-// The primitives for determining if a point is in an isosurface or not.
-bool inSurface( float v )
-{
-  return v < isosurface ; 
-
-    // These don't work:
-    // cut point where you get `isosurfaceThickness` units away from isosurface.
-    //return fabsf( v-isosurface ) < isosurfaceThickness ;
-    //isNear( v, isosurface, isosurfaceThickness ) ;
-    //(isosurface - isosurfaceThickness) < v && v < (isosurface+isosurfaceThickness) ;
-}
-
-// so to avoid COMPLETE fill, you DON'T gen a tet for 
-// fully embedded tet that is ALL TOO DEEP
-bool tooDeep( float v )
-{
-  return v < isosurface - isosurfaceThickness ; 
-}
 
 #include "VoxelGrid.h"
 #include "Mesh.h"
 #include "PointCloud.h"
 #include "MarchingTets.h"
 #include "MarchingCubes.h"
+
+
+
+// window width and height
+float w=768.f, h=768.f ;
+float mouseX, mouseY,
+  wTerrain=2.59f, // the w to use for the terrain generation
+  wTexture=0.1f,   // texture w
+  isosurface=0.38f // the isosurface variable
+;
+// the repeat period for w.
+static int wTerrainPeriod=8, wTexturePeriod=8;
+
+enum VizGenMode { VizGenCubes, VizGenTets, VizGenPts } ;
+const char* VizGenModeName[] = { "VizGenCubes", "VizGenTets", "VizGenPts" } ;
+int vizGenMode = VizGenCubes ;
+
+// RENDERING OPTIONS:
+float lineWidth=1.f;
+bool lightingOn=1;
+bool showGradients=0 ; // not used since gradients not generated here
+
+bool repeats = 0 ;  // Show the world repeated (key 'r')
+Axis axis ;         // for moving around in space
+float speed=0.02f ; // (key 'g'): movement speed
 
 // My global voxel grid.
 VoxelGrid voxelGrid ;
@@ -114,19 +96,6 @@ void addDebugLine( const Vector3f& v1, const Vector4f& c1, const Vector3f& v2, c
 
 
 
-// globals specific to main.cpp
-enum VizGenMode { VizGenCubes, VizGenTets, VizGenPts } ;
-const char* VizGenModeName[] = { "VizGenCubes", "VizGenTets", "VizGenPts" } ;
-int vizGenMode = VizGenCubes ;
-
-// RENDERING OPTIONS:
-float lineWidth=1.f ;
-
-bool showGradients=0 ; // not used since gradients not generated here
-
-bool repeats = 0 ;  // Show the world repeated (key 'r')
-Axis axis ;         // for moving around in space
-float speed=0.02f ; // (key 'g'): movement speed
 
 
 
@@ -147,29 +116,30 @@ void genVizFromVoxelData()
   if( vizGenMode == VizGenPts )
   {
     // GENERATE THE VISUALIZATION AS POINTS
-    PointCloud pc( &voxelGrid, &mesh.verts, isosurface ) ; 
+    PointCloud pc( &voxelGrid, &mesh.verts, isosurface, White ) ; 
     if( !pc.useCubes ) mesh.renderMode = GL_POINTS ;
     pc.genVizPunchthru() ;
   }
   else if( vizGenMode == VizGenTets )
   {
-    MarchingTets mt( &voxelGrid, &mesh.verts, isosurface, Blue ) ;
+    MarchingTets mt( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mt.genVizMarchingTets() ;
     mesh.smoothMesh( voxelGrid ) ;
   }
   else
   {
-    MarchingCubes mc( &voxelGrid, &mesh.verts, isosurface, Blue ) ;
+    MarchingCubes mc( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mc.genVizMarchingCubes() ;
     mesh.smoothMesh( voxelGrid ) ;
   }
   
-  
+  mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+
 }
 
 void regen()
 {
-  voxelGrid.genData() ;    
+  voxelGrid.genData( wTerrain, wTerrainPeriod ) ;    
   genVizFromVoxelData() ;
 }
 
@@ -228,40 +198,56 @@ void exportOBJ( const char* filename )
   #endif
 }
 
+#ifdef __APPLE__
+KeyMap keyStates ;
+
+bool IS_KEYDOWN( uint16_t vKey )
+{
+  // http://stackoverflow.com/questions/11466294/getting-keyboard-state-using-getkeys-function
+  uint8_t index = vKey / 32 ;
+  uint8_t shift = vKey % 32 ;
+  return keyStates[index].bigEndianValue & (1 << shift) ;
+}
+#endif
+
 void keys()
 {
+  #ifdef _WIN32
+  
+  // Windows makes this easy and nice..
   #define IS_KEYDOWN( c ) (GetAsyncKeyState( c ) & 0x8000)
   if( IS_KEYDOWN( 'W' ) )
-  {
     axis.pos += axis.forward * speed ;
-  }
-  
   if( IS_KEYDOWN( 'S' ) )
-  {
     axis.pos -= axis.forward * speed ;
-  }
-
   if( IS_KEYDOWN( 'A' ) )
-  {
     axis.pos -= axis.right * speed ;
-  }
-
   if( IS_KEYDOWN( 'D' ) )
-  {
     axis.pos += axis.right * speed ;
-  }
-
   if( IS_KEYDOWN( 'Q' ) )
-  {
     axis.roll( -speed/15 ) ;
-  }
-
   if( IS_KEYDOWN( 'E' ) )
-  {
     axis.roll( speed/15 ) ;
-  }
 
-}
+  #elif defined __APPLE__
+  
+  GetKeys(keyStates) ;
+  if( IS_KEYDOWN( kVK_ANSI_W ) )
+    axis.pos += axis.forward * speed ;
+  if( IS_KEYDOWN( kVK_ANSI_S ) )
+    axis.pos -= axis.forward * speed ;
+  if( IS_KEYDOWN( kVK_ANSI_A ) )
+    axis.pos -= axis.right * speed ;
+  if( IS_KEYDOWN( kVK_ANSI_D ) )
+    axis.pos += axis.right * speed ;
+  if( IS_KEYDOWN( kVK_ANSI_Q ) )
+    axis.roll( -speed/15 ) ;
+  if( IS_KEYDOWN( kVK_ANSI_E ) )
+    axis.roll( speed/15 ) ;
+
+  
+  #endif
+  }
 
 
 void drawElements( int renderMode, vector<int> indices )
@@ -274,7 +260,7 @@ void drawElements( int renderMode, vector<int> indices )
       {
         glPushMatrix();
         glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize,0 ) ;
-        glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
+        glDrawElements( renderMode, (int)indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
         glPopMatrix();
       }
     }
@@ -282,7 +268,7 @@ void drawElements( int renderMode, vector<int> indices )
   else
   {
     // draw it once
-    glDrawElements( renderMode, indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
+    glDrawElements( renderMode, (int)indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
   }
 }
 
@@ -357,40 +343,44 @@ void draw()
   glLineWidth( lineWidth ) ;
   drawAxisLines() ;
   
-  vector<Vector4f> lightPoses ;
-
-  static float ld = voxelGrid.worldSize ;
-  lightPoses.push_back( Vector4f(  ld,  ld/2, ld, 1 ) ) ;
-  lightPoses.push_back( Vector4f(  ld,  ld,   ld, 1 ) ) ;
-  lightPoses.push_back( Vector4f(   0,  ld,    0, 1 ) ) ;
-  lightPoses.push_back( Vector4f( -ld,   0,    0, 1 ) ) ;
-
-  static float r = 0.f;
-  r += 0.0001f;
   
-  glDisable( GL_LIGHTING ) ;
-  
-  float white[4] = {1,1,1,1};
-  for( int i = 0 ; i < lightPoses.size() ; i++ )
+  // Lights.
+  if( lightingOn )
   {
-    glEnable( GL_LIGHT0 + i ) ;
-    lightPoses[i].xyz() = Matrix3f::rotationY( r ) * lightPoses[i].xyz() ;
-    glLightfv( GL_LIGHT0 + i, GL_POSITION, &lightPoses[i].x ) ;
-    glLightfv( GL_LIGHT0 + i, GL_DIFFUSE, white ) ;
-    glLightfv( GL_LIGHT0 + i, GL_SPECULAR, white ) ;
+    vector<Vector4f> lightPoses ;
+    float ld = voxelGrid.worldSize ;
+    lightPoses.push_back( Vector4f(  ld,  ld/2, ld, 1 ) ) ;
+    lightPoses.push_back( Vector4f(  ld,  ld,   ld, 1 ) ) ;
+    lightPoses.push_back( Vector4f(   0,  ld,    0, 1 ) ) ;
+    lightPoses.push_back( Vector4f( -ld,   0,    0, 1 ) ) ;
 
-    // visualize the light
-    glPushMatrix();
-    glTranslatef( lightPoses[i].x, lightPoses[i].y, lightPoses[i].z ) ;
-    glutSolidSphere( voxelGrid.worldSize/10, 16, 16 ) ;
-    glPopMatrix() ;
+    static float r = 0.f;
+    r += 0.0001f;
+  
+    glDisable( GL_LIGHTING ) ;
+  
+    float white[4] = {1,1,1,1};
+    for( int i = 0 ; i < lightPoses.size() ; i++ )
+    {
+      glEnable( GL_LIGHT0 + i ) ;
+      lightPoses[i].xyz() = Matrix3f::rotationY( r ) * lightPoses[i].xyz() ;
+      glLightfv( GL_LIGHT0 + i, GL_POSITION, &lightPoses[i].x ) ;
+      glLightfv( GL_LIGHT0 + i, GL_DIFFUSE, white ) ;
+      glLightfv( GL_LIGHT0 + i, GL_SPECULAR, white ) ;
+
+      // visualize the light
+      glPushMatrix();
+      glTranslatef( lightPoses[i].x, lightPoses[i].y, lightPoses[i].z ) ;
+      glutSolidSphere( voxelGrid.worldSize/10, 16, 16 ) ;
+      glPopMatrix() ;
+    }
+  
+    Vector4f spec( 1,1,1,50 ) ;
+    glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &spec.x ) ;
+    glMaterialf( GL_FRONT_AND_BACK, GL_SHININESS, spec.w ) ;
+  
+    glEnable( GL_LIGHTING ) ;
   }
-  
-  Vector4f spec( 1,1,1,50 ) ;
-  glMaterialfv( GL_FRONT_AND_BACK, GL_SPECULAR, &spec.x ) ;
-  glMaterialf( GL_FRONT_AND_BACK, GL_SHININESS, spec.w ) ;
-  
-  glEnable( GL_LIGHTING ) ;
 
   glEnableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
   glEnableClientState( GL_NORMAL_ARRAY ) ;  CHECK_GL ;
@@ -444,14 +434,14 @@ void draw()
     glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &gradients[0].pos ) ;
     glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &gradients[0].color ) ;
 
-    drawBoundArray( GL_LINES, gradients.size() ) ;
+    drawBoundArray( GL_LINES, (int)gradients.size() ) ;
   }
   if( debugLines.size() )
   {
     glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &debugLines[0].pos ) ;
     glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &debugLines[0].color ) ;
     
-    drawBoundArray( GL_LINES, debugLines.size() ) ;
+    drawBoundArray( GL_LINES, (int)debugLines.size() ) ;
   }
   glDisableClientState( GL_VERTEX_ARRAY ) ;
   glDisableClientState( GL_COLOR_ARRAY ) ;
@@ -484,7 +474,7 @@ void draw()
   float yPos = 0.f, yi = 30.f ;
   glutPuts( buf, Vector2f( 20, yPos+=yi ), White ) ;
 
-  int numPts = mesh.verts.size() ;
+  int numPts = (int)mesh.verts.size() ;
   const char* ptsOrTris = "pts" ;
   if( mesh.renderMode==GL_TRIANGLES )
   {
@@ -499,11 +489,11 @@ void draw()
   sprintf( buf, "(t) %s (k)gridSize=%d / %s=%d (+/-)w=%.2f (i/I)isosurface=%.2f",
     VizGenModeName[ vizGenMode ],
     voxelGrid.dims.x, ptsOrTris, numPts,
-    pw, isosurface ) ;
+    wTerrain, isosurface ) ;
   glutPuts( buf, Vector2f(20, yPos+=yi), White ) ;
   sprintf( buf, "(n/N)minEdgeLength=%.3f (g/G)speed=%.2f (j/J)worldSize=%.2f",
     Mesh::minEdgeLength, speed, voxelGrid.worldSize ) ;
-  const char * p = buf ;
+  
   glutPuts( buf, Vector2f(20, h-yi), White ) ;
 
   glutSwapBuffers();
@@ -531,9 +521,6 @@ void mouseMotion( int x, int y )
   }
   else if( mmode == GLUT_RIGHT_BUTTON )
   {
-    // dolly
-    sbd +=0.1*(-dx+dy) ;
-    clamp( sbd, 10, 1000 ) ;
   }
   
   lastX=x,lastY=y;
@@ -583,22 +570,22 @@ void keyboard( unsigned char key, int x, int y )
     regen() ;
     break ;
   case '=':
-    pw+=diff;
+    wTerrain+=diff;
     regen();
     break;
   
   case '+':
-    pw+=10*diff;
+    wTerrain+=10*diff;
     regen() ;
     break;
   
   case '-':
-    pw-=diff;
+    wTerrain-=diff;
     regen();
     break; 
   
   case '_':
-    pw-=10*diff;
+    wTerrain-=10*diff;
     regen();
     break;
 
@@ -705,6 +692,19 @@ void keyboard( unsigned char key, int x, int y )
     regen() ;
     break; 
 
+  case 'y':
+    wTexture += 0.01f ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    break ;
+
+  case 'Y':
+    wTexture -= 0.01f ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    break ;
+
+  case 'z':
+    lightingOn=!lightingOn ;
+    break ;
   case 27:
     exit(0);
     break;

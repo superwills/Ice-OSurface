@@ -396,6 +396,51 @@ union Vector3f
   static Vector3f unlerp( const Vector3f& v, const Vector3f& A, const Vector3f& B ){
     return (v-A)/(B-A) ;  
   }
+  
+  static Vector3f linearSpline( float t, const Vector3f& c1, const Vector3f& c2 )
+  {
+    return (c1*t + c2*(1-t)) ;
+  }
+
+  static Vector3f quadraticSpline( float t, const Vector3f& c1, const Vector3f& c2, const Vector3f& c3 )
+  {
+    float _t = 1-t ;
+    return c1*t*t + c2*2*t*_t + c3*_t*_t ;
+  }
+
+  static Vector3f cubicSpline( float t, const Vector3f& c1, const Vector3f& c2, const Vector3f& c3, const Vector3f& c4 )
+  {
+    float _t = 1-t ;
+    return c1 *t*t*t + 
+      c2 *3*t*t*_t + 
+      c3 *3*t*_t*_t +
+      c4 *_t*_t*_t ;
+  }
+
+  static Vector3f quarticSpline( float t, const Vector3f& c1, const Vector3f& c2, const Vector3f& c3, const Vector3f& c4, const Vector3f& c5 )
+  {
+    float _t = 1-t;
+    return c1 *t*t*t*t + 
+      c2 *4*t*t*t*_t + 
+      c3 *6*t*t*_t*_t +
+      c4 *4*t*_t*_t*_t + 
+      c5 *_t*_t*_t*_t ;
+  }
+
+  static Vector3f quinticSpline( float t, const Vector3f& c1, const Vector3f& c2, const Vector3f& c3,
+    const Vector3f& c4, const Vector3f& c5, const Vector3f& c6 )
+  {
+    float _t = 1-t;
+    Vector3f color = c1 * t*t*t*t*t + 
+      c2 * 5 *t*t*t*t*_t + 
+      c3 * 10*t*t*t*_t*_t +
+      c4 * 10*t*t*_t*_t*_t + 
+      c5 * 5 *t*_t*_t*_t*_t +
+      c6 * _t*_t*_t*_t*_t ;
+
+    return color ;
+  }
+  
   //CONST
   inline void print() const {
     printf( "(%.2f %.2f %.2f)",x,y,z ) ;
@@ -662,6 +707,17 @@ union Vector3f
     ::clamp( z,minVal,maxVal ) ;
     return *this ;
   }
+  
+  inline Vector3f& clampLen( float minLen, float maxLen ){
+    float length = len() ;
+    if( length < minLen )
+      return normalize()*=minLen ;
+    if( length > maxLen ) // also means length > 0, hopefully
+      return normalize()*=maxLen ;
+    
+    return *this ;
+  }
+  
   inline Vector3f& clampLen( float maxLen ){
     float length = len() ;
     if( length > maxLen ) // also means length > 0, hopefully

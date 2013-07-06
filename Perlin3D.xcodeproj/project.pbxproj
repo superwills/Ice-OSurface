@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9F26794B1788709B00BA37B9 /* MarchingCommon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9F26794A1788709B00BA37B9 /* MarchingCommon.cpp */; };
 		9FE79F29176BA6CD00DCA859 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FE79F28176BA6CD00DCA859 /* main.cpp */; };
 		9FE79F32176BA6EE00DCA859 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9FE79F31176BA6EE00DCA859 /* OpenGL.framework */; };
 		9FE79F34176BA6F500DCA859 /* GLUT.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9FE79F33176BA6F500DCA859 /* GLUT.framework */; };
@@ -15,6 +16,7 @@
 		9FE79F3F176BADC500DCA859 /* MersenneTwister.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FE79F3E176BADC500DCA859 /* MersenneTwister.cpp */; };
 		9FE79F43176BB21500DCA859 /* GLUtil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FE79F42176BB21500DCA859 /* GLUtil.cpp */; };
 		9FE79F8C176C0B1600DCA859 /* perlin.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FE79F8B176C0B1600DCA859 /* perlin.cpp */; };
+		9FFEFDD51787AA7200CD8587 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9FFEFDD41787AA7200CD8587 /* Carbon.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -30,12 +32,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		9F26794A1788709B00BA37B9 /* MarchingCommon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MarchingCommon.cpp; sourceTree = "<group>"; };
 		9FE79F25176BA6CD00DCA859 /* Perlin3D */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Perlin3D; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FE79F28176BA6CD00DCA859 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		9FE79F31176BA6EE00DCA859 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		9FE79F33176BA6F500DCA859 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = System/Library/Frameworks/GLUT.framework; sourceTree = SDKROOT; };
 		9FE79F35176BAC8600DCA859 /* perlin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = perlin.h; sourceTree = "<group>"; };
-		9FE79F36176BACEB00DCA859 /* todo */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = todo; sourceTree = "<group>"; };
 		9FE79F37176BAD8500DCA859 /* Vectorf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Vectorf.h; sourceTree = "<group>"; };
 		9FE79F38176BAD8500DCA859 /* StdWilUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StdWilUtil.h; sourceTree = "<group>"; };
 		9FE79F39176BAD8500DCA859 /* StdWilUtil.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StdWilUtil.cpp; sourceTree = "<group>"; };
@@ -46,6 +48,13 @@
 		9FE79F42176BB21500DCA859 /* GLUtil.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GLUtil.cpp; sourceTree = "<group>"; };
 		9FE79F44176BBBE400DCA859 /* Geometry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Geometry.h; sourceTree = "<group>"; };
 		9FE79F8B176C0B1600DCA859 /* perlin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = perlin.cpp; sourceTree = "<group>"; };
+		9FFEFDCE1787A75C00CD8587 /* Mesh.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Mesh.h; sourceTree = "<group>"; };
+		9FFEFDCF1787A75C00CD8587 /* MarchingTets.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MarchingTets.h; sourceTree = "<group>"; };
+		9FFEFDD01787A75C00CD8587 /* MarchingCubes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MarchingCubes.h; sourceTree = "<group>"; };
+		9FFEFDD11787A75C00CD8587 /* PointCloud.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PointCloud.h; sourceTree = "<group>"; };
+		9FFEFDD21787A75C00CD8587 /* VoxelGrid.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VoxelGrid.h; sourceTree = "<group>"; };
+		9FFEFDD31787A75C00CD8587 /* MarchingCommon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MarchingCommon.h; sourceTree = "<group>"; };
+		9FFEFDD41787AA7200CD8587 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +62,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FFEFDD51787AA7200CD8587 /* Carbon.framework in Frameworks */,
 				9FE79F34176BA6F500DCA859 /* GLUT.framework in Frameworks */,
 				9FE79F32176BA6EE00DCA859 /* OpenGL.framework in Frameworks */,
 			);
@@ -61,9 +71,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9F2679491788705700BA37B9 /* marching */ = {
+			isa = PBXGroup;
+			children = (
+				9FFEFDD31787A75C00CD8587 /* MarchingCommon.h */,
+				9F26794A1788709B00BA37B9 /* MarchingCommon.cpp */,
+				9FFEFDCF1787A75C00CD8587 /* MarchingTets.h */,
+				9FFEFDD01787A75C00CD8587 /* MarchingCubes.h */,
+				9FFEFDD11787A75C00CD8587 /* PointCloud.h */,
+				9FFEFDD21787A75C00CD8587 /* VoxelGrid.h */,
+			);
+			name = marching;
+			sourceTree = "<group>";
+		};
 		9FE79F1C176BA6CD00DCA859 = {
 			isa = PBXGroup;
 			children = (
+				9FFEFDD41787AA7200CD8587 /* Carbon.framework */,
 				9FE79F33176BA6F500DCA859 /* GLUT.framework */,
 				9FE79F31176BA6EE00DCA859 /* OpenGL.framework */,
 				9FE79F27176BA6CD00DCA859 /* Perlin3D */,
@@ -83,10 +107,9 @@
 			isa = PBXGroup;
 			children = (
 				9FE79F40176BAEE300DCA859 /* util */,
-				9FE79F35176BAC8600DCA859 /* perlin.h */,
-				9FE79F8B176C0B1600DCA859 /* perlin.cpp */,
+				9F2679491788705700BA37B9 /* marching */,
+				9FFEFDCE1787A75C00CD8587 /* Mesh.h */,
 				9FE79F28176BA6CD00DCA859 /* main.cpp */,
-				9FE79F36176BACEB00DCA859 /* todo */,
 			);
 			path = Perlin3D;
 			sourceTree = "<group>";
@@ -103,6 +126,8 @@
 				9FE79F41176BB20C00DCA859 /* GLUtil.h */,
 				9FE79F42176BB21500DCA859 /* GLUtil.cpp */,
 				9FE79F44176BBBE400DCA859 /* Geometry.h */,
+				9FE79F35176BAC8600DCA859 /* perlin.h */,
+				9FE79F8B176C0B1600DCA859 /* perlin.cpp */,
 			);
 			name = util;
 			sourceTree = "<group>";
@@ -164,6 +189,7 @@
 				9FE79F3F176BADC500DCA859 /* MersenneTwister.cpp in Sources */,
 				9FE79F43176BB21500DCA859 /* GLUtil.cpp in Sources */,
 				9FE79F8C176C0B1600DCA859 /* perlin.cpp in Sources */,
+				9F26794B1788709B00BA37B9 /* MarchingCommon.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

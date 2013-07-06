@@ -54,7 +54,7 @@ double getClockS()
 int cFilesize( FILE* file )
 {
   fseek( file, 0, SEEK_END ) ;
-  int sizeVar = ftell( file ) ;
+  int sizeVar = (int)ftell( file ) ;
   rewind( file ) ;
   return sizeVar ;
 }
@@ -65,7 +65,7 @@ void cFileReadBinary( void* dstPtr, const char* filename )
   if( file )
   {
     fseek( file, 0, SEEK_END ) ;
-    int fileSize = ftell( file ) ;
+    int fileSize = (int)ftell( file ) ;
     dstPtr = malloc( fileSize ) ;
     rewind( file ) ;
     fread( dstPtr, fileSize, 1, file ) ;

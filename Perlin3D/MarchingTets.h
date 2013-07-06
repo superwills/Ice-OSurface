@@ -1,26 +1,15 @@
 #ifndef MARCHINGTETS_H
 #define MARCHINGTETS_H
 
+#include "MarchingCommon.h"
 
-
-struct MarchingTets
+struct MarchingTets : public IsosurfaceFinder
 {
-  // The voxel grid I am operating on.
-  VoxelGrid *voxelGrid ;
-  float isosurface ;
-
-  // Pointers to arrays in caller program space
-  vector<VertexPNC> *verts ;
-  Vector4f tetColor ;
   bool SOLID ;
-  
 
-  MarchingTets( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& iTetColor )
+  MarchingTets( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+    IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
-    voxelGrid = iVoxelGrid ;
-    verts = iVerts ;
-    isosurface = iIsosurface ;
-    tetColor = iTetColor ;
     SOLID=0;
   }
 
@@ -34,9 +23,9 @@ struct MarchingTets
 
     if( SOLID )
       Geometry::triPrism( *verts, voxelGrid->getP(A), voxelGrid->getP(B), voxelGrid->getP(C),
-                          cutAD, cutCD, cutBD, tetColor ) ;
+                          cutAD, cutCD, cutBD, baseColor ) ;
     else
-      Geometry::addTriWithNormal( *verts, cutAD, cutCD, cutBD, tetColor ) ; // SHOW ONLY THE CUT FACE
+      Geometry::addTriWithNormal( *verts, cutAD, cutCD, cutBD, baseColor ) ; // SHOW ONLY THE CUT FACE
   
   }
 
@@ -52,11 +41,11 @@ struct MarchingTets
     Vector3f cutBD = voxelGrid->getCutPoint( isosurface, B, D ) ;
 
     if( SOLID )
-      Geometry::triPrism( *verts, voxelGrid->getP(B), cutBD, cutBC,   voxelGrid->getP(A), cutAC, cutAD, tetColor ) ;
+      Geometry::triPrism( *verts, voxelGrid->getP(B), cutBD, cutBC,   voxelGrid->getP(A), cutAC, cutAD, baseColor ) ;
     else
     {
-      Geometry::addTriWithNormal( *verts, cutAC, cutBC, cutBD, tetColor ) ;
-      Geometry::addTriWithNormal( *verts, cutAC, cutBD, cutAD, tetColor ) ;
+      Geometry::addTriWithNormal( *verts, cutAC, cutBC, cutBD, baseColor ) ;
+      Geometry::addTriWithNormal( *verts, cutAC, cutBD, cutAD, baseColor ) ;
     }
   }
 
@@ -69,10 +58,10 @@ struct MarchingTets
 
     if( SOLID )
     {
-      Geometry::addTet( *verts, voxelGrid->getP(A), cutAB, cutAC, cutAD, tetColor ) ;
+      Geometry::addTet( *verts, voxelGrid->getP(A), cutAB, cutAC, cutAD, baseColor ) ;
     }
     else
-      Geometry::addTriWithNormal( *verts, cutAB, cutAD, cutAC, tetColor ) ;
+      Geometry::addTriWithNormal( *verts, cutAB, cutAD, cutAC, baseColor ) ;
   }
 
   void tet( const Vector3i& A, const Vector3i& B, const Vector3i& C, const Vector3i& D )

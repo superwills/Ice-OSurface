@@ -37,7 +37,6 @@ void drawAxisLines()
     //const int numberGridLines = worldMax-worldMin;	// number of purple grid lines
     
     bool fullAxes = 1 ; // full or half axes
-    bool showWalls = 0, showFloor=1;
     const int axisLength = gll ;      // length of the axes (R, G, B for X, Y, Z)
     const float axisIntensity = 0.8f;	// color intensity of each axis
 
@@ -161,11 +160,11 @@ void drawAxisLines()
   //glLineWidth( 4.0f );	// thicken lines
   glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &axes[0].pos ) ;
   glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &axes[0].color ) ;
-  glDrawArrays( GL_LINES, 0, axes.size() ) ;
+  glDrawArrays( GL_LINES, 0, (int)axes.size() ) ;
   
   glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &axesEnds[0].pos ) ;
   glColorPointer( 4, GL_FLOAT, sizeof( VertexPC ), &axesEnds[0].color ) ;
-  glDrawArrays( GL_POINTS, 0, axesEnds.size() ) ;
+  glDrawArrays( GL_POINTS, 0, (int)axesEnds.size() ) ;
   
   glDisableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
   glDisableClientState( GL_COLOR_ARRAY ) ;  CHECK_GL ;
