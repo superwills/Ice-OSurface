@@ -1253,7 +1253,7 @@ extern Vector4f Red, DarkRed,
   Blue, DarkBlue,
   Purple, Orange,
   White, Gray, DarkGray, Black, 
-  Magenta, Teal, Yellow,
+  Magenta, Cyan, Yellow,
   TWhite, TBlack
 ;
 

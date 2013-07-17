@@ -448,7 +448,7 @@ struct Geometry
     E+=center,  F+=center,  G+=center,  H+=center ;
 
     // LEFT /NX EDGE
-    Geometry::addTet( verts, A, B, D, E, Vector4f(   0,   1,   1, 0.5 ) ) ; //Teal
+    Geometry::addTet( verts, A, B, D, E, Vector4f(   0,   1,   1, 0.5 ) ) ; //Cyan
     Geometry::addTet( verts, A, D, C, E, Vector4f(   0,   0,   1, 0.5 ) ) ; //Blue
 
     // TOP

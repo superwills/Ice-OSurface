@@ -32,6 +32,9 @@
 #ifdef _WIN32
 #include <stdlib.h> // MUST BE BEFORE GLUT ON WINDOWS
 #include <gl/glut.h>
+
+
+
 #else
 #include <GLUT/glut.h>
 #include <OpenGL/gl.h>
@@ -53,6 +56,8 @@ using namespace std;
 #include "PointCloud.h"
 #include "MarchingTets.h"
 #include "MarchingCubes.h"
+
+
 
 
 
@@ -78,6 +83,8 @@ bool showGradients=0 ; // not used since gradients not generated here
 bool repeats = 0 ;  // Show the world repeated (key 'r')
 Axis axis ;         // for moving around in space
 float speed=0.02f ; // (key 'g'): movement speed
+float minEdgeLength=0.1f ; // the minimum ALLOWED edge length before the edge gets removed.
+
 
 // My global voxel grid.
 VoxelGrid voxelGrid ;
@@ -119,22 +126,24 @@ void genVizFromVoxelData()
     PointCloud pc( &voxelGrid, &mesh.verts, isosurface, White ) ; 
     if( !pc.useCubes ) mesh.renderMode = GL_POINTS ;
     pc.genVizPunchthru() ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
   }
   else if( vizGenMode == VizGenTets )
   {
     MarchingTets mt( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mt.genVizMarchingTets() ;
-    mesh.smoothMesh( voxelGrid ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.smoothMesh( &voxelGrid, minEdgeLength ) ;
   }
   else
   {
     MarchingCubes mc( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mc.genVizMarchingCubes() ;
-    mesh.smoothMesh( voxelGrid ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.smoothMesh( &voxelGrid, minEdgeLength ) ;
   }
   
-  mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
-
+  
 }
 
 void regen()
@@ -258,10 +267,13 @@ void drawElements( int renderMode, vector<int> indices )
     {
       for( int j = -1 ; j <= 1 ; j++ )
       {
-        glPushMatrix();
-        glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize,0 ) ;
-        glDrawElements( renderMode, (int)indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
-        glPopMatrix();
+        int k = 0 ; //for( int k = -1 ; k <= 1 ; k++ )
+        {
+          glPushMatrix();
+          glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize, k*voxelGrid.worldSize ) ;
+          glDrawElements( renderMode, (int)indices.size(), GL_UNSIGNED_INT, &indices[0] ) ;
+          glPopMatrix();
+        }
       }
     }
   }
@@ -280,10 +292,13 @@ void drawBoundArray( int renderMode, int size )
     {
       for( int j = -1 ; j <= 1 ; j++ )
       {
-        glPushMatrix();
-        glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize,0 ) ;
-        glDrawArrays( renderMode, 0, size ) ;
-        glPopMatrix();
+        int k = 0 ; //for( int k = -1 ; k <= 1 ; k++ )
+        {
+          glPushMatrix();
+          glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize, k*voxelGrid.worldSize ) ;
+          glDrawArrays( renderMode, 0, size ) ;
+          glPopMatrix();
+        }
       }
     }
   }
@@ -404,10 +419,13 @@ void draw()
         {
           for( int j = -1 ; j <= 1 ; j++ )
           {
-            glPushMatrix();
-            glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize,0 ) ;
-            glDrawArrays( mesh.renderMode, 0, (int)mesh.verts.size() ) ;
-            glPopMatrix();
+            int k = 0 ; //for( int k = -1 ; k <= 1 ; k++ )
+            { 
+              glPushMatrix();
+              glTranslatef( i*voxelGrid.worldSize, j*voxelGrid.worldSize, k*voxelGrid.worldSize ) ;
+              glDrawArrays( mesh.renderMode, 0, (int)mesh.verts.size() ) ;
+              glPopMatrix();
+            }
           }
         }
       }
@@ -492,7 +510,7 @@ void draw()
     wTerrain, isosurface ) ;
   glutPuts( buf, Vector2f(20, yPos+=yi), White ) ;
   sprintf( buf, "(n/N)minEdgeLength=%.3f (g/G)speed=%.2f (j/J)worldSize=%.2f",
-    Mesh::minEdgeLength, speed, voxelGrid.worldSize ) ;
+    minEdgeLength, speed, voxelGrid.worldSize ) ;
   
   glutPuts( buf, Vector2f(20, h-yi), White ) ;
 
@@ -644,11 +662,11 @@ void keyboard( unsigned char key, int x, int y )
     break;
     
   case 'n':
-    Mesh::minEdgeLength += 0.1 ;
+    minEdgeLength += 0.1 ;
     regen() ;
     break ;
   case 'N':
-    Mesh::minEdgeLength -= 0.1 ;
+    minEdgeLength -= 0.1 ;
     regen() ;
     break ;
   case 'm':

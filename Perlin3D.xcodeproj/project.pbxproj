@@ -87,10 +87,10 @@
 		9FE79F1C176BA6CD00DCA859 = {
 			isa = PBXGroup;
 			children = (
-				9FFEFDD41787AA7200CD8587 /* Carbon.framework */,
-				9FE79F33176BA6F500DCA859 /* GLUT.framework */,
-				9FE79F31176BA6EE00DCA859 /* OpenGL.framework */,
 				9FE79F27176BA6CD00DCA859 /* Perlin3D */,
+				9FFEFDD41787AA7200CD8587 /* Carbon.framework */,
+				9FE79F31176BA6EE00DCA859 /* OpenGL.framework */,
+				9FE79F33176BA6F500DCA859 /* GLUT.framework */,
 				9FE79F26176BA6CD00DCA859 /* Products */,
 			);
 			sourceTree = "<group>";
