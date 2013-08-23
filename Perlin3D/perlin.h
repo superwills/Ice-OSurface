@@ -60,6 +60,25 @@ namespace Perlin
   float sdnoise( float x, float y, float z, float w,
                  float *dnoise_dx, float *dnoise_dy,
                  float *dnoise_dz, float *dnoise_dw);
+  
+  // Harmonic summing functions.
+  // persistence, lacunarity, octaves
+  // You want to add multiple octaves of noise.
+  // so you add: noise(f) + 1/2*noise(2*f) + 1/4*noise(4*f)..
+  // octaveScaleFactor (aka `persistence`) is how much to MULTIPLY each successive octave by (should be <1)
+  // freqMult (aka `lacunarity`) is the spacing between "octaves" (if it is not 2, then it technically isn't an "octave")
+  // numFreqs (aka `octaves`) is the NUMBER of harmonics to add.
+  //
+  // See here for pictures & definitions of these terms http://libnoise.sourceforge.net/glossary/
+  float hnoise1( float x, int px, float octaveScaleFactor, float freqMult, int numFreqs ) ;
+
+  // To wrap on a sphere:  use theta and phi for x and y
+  // Brushed metal: vary only ONE of x,y
+  //   (eg PerlinNoise2D( uv.x, _1_, 2, 2, 8 ) // (the 1 stays constant across the 2d face)
+  //   (OR you could just generate a line of 1d noise and copy it)
+  float hnoise2( float x, float y, int px, int py, float octaveScaleFactor, float freqMult, int numFreqs ) ;
+  
+  float hnoise3(float x, float y, float z, int px, int py, int pz, float octaveScaleFactor, float freqMult, int numFreqs ) ;
 
 };
 

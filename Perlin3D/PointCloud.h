@@ -85,7 +85,7 @@ struct PointCloud : public IsosurfaceFinder
   vector< vector<int> > DirsNeighbours ;
   // Directions[i] has neighbours listed by DirsNeighbours[i][0]..DirsNeighbours[i][size]
 
-  PointCloud( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+  PointCloud( VoxelGrid *iVoxelGrid, vector<VertexPNCT>* iVerts, float iIsosurface, const Vector4f& color ) :
     IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
     initDirections() ;
@@ -97,7 +97,7 @@ struct PointCloud : public IsosurfaceFinder
     if( useCubes )
       Geometry::addCubeFacingOut( *verts, p, size*cubeSize, color ) ;
     else
-      verts->push_back( VertexPNC( p, Vector3f(0,1,0), color ) ) ;
+      verts->push_back( VertexPNCT( p, Vector3f(0,1,0), color ) ) ;
   }
 
   void genVizPunchthru()

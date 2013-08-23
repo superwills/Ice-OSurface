@@ -18,11 +18,11 @@ struct IsosurfaceFinder
   VoxelGrid *voxelGrid ;
   
   // Pointers to arrays in caller program space
-  vector<VertexPNC> *verts ;
+  vector<VertexPNCT> *verts ;
   
   Vector4f baseColor ;
   
-  IsosurfaceFinder( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& iBaseColor )
+  IsosurfaceFinder( VoxelGrid *iVoxelGrid, vector<VertexPNCT>* iVerts, float iIsosurface, const Vector4f& iBaseColor )
   {
     voxelGrid = iVoxelGrid ;
     verts = iVerts ;

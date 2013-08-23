@@ -125,6 +125,29 @@ inline unsigned int hibit( unsigned int x )
   return  (1 << log2Val) ;   // finds 2^5=32, 2^0=1
 }
 
+
+// Little endian (little end/lsb first)
+inline unsigned int RGBA( unsigned char R, unsigned char G, unsigned char B, unsigned char A )
+{
+  // autopromotes to int, use | instead of + b/c + has higher prec than <<
+  return A<<24 | B<<16 | G<<8 | R ; //LE
+  //return R<<(3*8) + G<<(2*8) + B<<(8) + A ; //BE
+}
+
+inline unsigned int RGB( unsigned char R, unsigned char G, unsigned char B )
+{
+  return 0xff<<24 | B<<16 | G<<8 | R ;//LE
+  //return (R<<(3*8) + G<<(2*8) + B<<(8)) + 0xff ;//BE
+}
+
+// Transparent rgb
+inline unsigned int RGBT( unsigned char R, unsigned char G, unsigned char B )
+{
+  return B<<16 | G<<8 | R ;//LE
+  //return (R<<(3*8) + G<<(2*8) + B<<(8)) ;//BE
+}
+
+
 struct Gaussian
 {
   float amplitude, centerPos, stddev, stddev2 ;
@@ -215,7 +238,7 @@ inline float randFloat()
   // arc4random() is 0..4B (UINT_MAX).  It is NOT ULONG_MAX.
   // on ios ULONG_MAX=UINT_MAX, but on mac ULONG_MAX is ULONGLONG_MAX (9 trillion million or whatever)
   //return (float)arc4random() / UINT_MAX ; // THIS IS BAD.
-  return MersenneTwister::genrand_int32()*(1.0/4294967295.0);  // same as genrand_real1();
+  return MersenneTwister::genrand_real();
 }
 
 // -1,1 => -1 + ( rand between 0 and 2 )
@@ -239,7 +262,7 @@ inline int randSign()
   return -1 + 2*randInt(0,2) ; // -1+0 or -1+2=+1
 }
 
-inline void randSeed( unsigned long seed )
+inline void randSeed( unsigned int seed )
 {
   MersenneTwister::init_genrand( seed ) ;
 }

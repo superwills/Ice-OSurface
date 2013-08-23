@@ -7,6 +7,7 @@
 #include <math.h>
 #include "StdWilUtil.h"
 
+#define NAN_MOD_SAFETY
 
 struct Vector2f
 {
@@ -15,6 +16,13 @@ struct Vector2f
   Vector2f( float ix, float iy ):x(ix),y(iy){}
   //Vector2f( const CGPoint& o ):x( o. {  }
   Vector2f( float iv ):x(iv),y(iv){}
+  
+  // macho linker errors
+  static inline Vector2f random() { return Vector2f( randFloat(), randFloat() ) ;  }
+  
+  static inline Vector2f random(float min, float max) {
+    return Vector2f( randFloat(min,max), randFloat(min,max) ) ;
+  }
   
   //CONST
   inline void print() const {
@@ -50,6 +58,12 @@ struct Vector2f
   }
   inline Vector2f operator/( float s ) const {
     return Vector2f(x/s,y/s);
+  }
+  inline Vector2f operator%( const Vector2f& o ) const {
+    Vector2f res ;
+    if( o.x ) res.x = fmodf( x, o.x ) ;
+    if( o.y ) res.y = fmodf( y, o.y ) ;
+    return res ;
   }
   inline float cross( const Vector2f& o ) const {
     return x*o.y-y*o.x ;
@@ -103,6 +117,11 @@ struct Vector2f
   inline bool operator!=( const Vector2f& o ) const{
     return x!=o.x || y!=o.y ;
   }
+  
+  
+  inline float sum() const { return x+y ; }
+  
+  inline float max() const { return std::max(x,y); }
   
   // Returns TRUE if "this" is closer to A
   // than B
@@ -181,6 +200,40 @@ struct Vector2f
     x/=s,y/=s;
     return *this ;
   }
+  #ifdef NAN_MOD_SAFETY
+  // its highly unlikely you'll ask to mod by 0, since
+  // modding is usually rare and deliberate.
+  inline Vector2f& operator%=( float s ){
+    if( !s ) {
+      error( "mod by 0" ) ;
+      return *this ;
+    }
+    x=fmodf( x,s );  y=fmodf( y,s );
+    return *this ;
+  }
+  inline Vector2f& operator%=( const Vector2f &o ){
+    if( !o.x )  error( "mod by 0 (x)" ) ;
+    else x=fmodf( x,o.x );
+    if( !o.y )  error( "mod by 0 (y)" ) ;  
+    else y=fmodf( y,o.y );
+    return *this ;
+  }
+  #else
+  inline Vector2f& operator%=( float s ){
+    x=fmodf( x,s );  y=fmodf( y,s );
+    return *this ;
+  }
+  inline Vector2f& operator%=( const Vector2f &o ){
+    x=fmodf( x,o.x );  y=fmodf( y,o.y );
+    return *this ;
+  }
+  #endif
+  // This may be faster, but it requires you use the +octant
+  // (0,0,0)->(worldSize,worldSize,worldSize)
+  inline Vector2f& wrap( const Vector2f& worldSize ){
+    *this += worldSize ;
+    return *this %= worldSize ;
+  }
   inline Vector2f& clampLen( float maxLen ){
     float length = len() ;
     if( length > maxLen ) // also means length > 0, hopefully
@@ -219,6 +272,11 @@ struct Vector2f
     return *this ;
   }
   
+  inline Vector2f& fabs()
+  {
+    x=fabsf(x) ;  y=fabsf(y);
+    return *this ;
+  }
 } ;
 
 
@@ -903,7 +961,7 @@ union Vector3f
     return rgb ;
   }
 
-  Vector3f& fabs()
+  inline Vector3f& fabs()
   {
     x=fabsf(x) ;  y=fabsf(y); z=fabsf(z) ;
     return *this ;
@@ -976,6 +1034,11 @@ struct SVector
 //    return mat * sv.toCartesian() ;
 //  }
 } ;
+
+inline float distance1( const Vector3f& a, const Vector3f& b )
+{
+  return ( a - b ).len() ;
+}
 
 inline float distance2( const Vector3f& a, const Vector3f& b )
 {
@@ -1163,7 +1226,7 @@ union Vector4f
            -1.f <= w && w <= 1.f ;
   }
   // Exact equality
-  inline bool operator==( const Vector4f& o ) const{
+  inline bool operator==( const Vector4f& o ) const {
     return x==o.x && y==o.y && z==o.z && w==o.w;
   }
   
@@ -1173,7 +1236,17 @@ union Vector4f
   Vector4f toRGB() const {
 	  return Vector4f( Vector3f::HSVtoRGB( x, y, z ), w ) ;
   }
+  unsigned int RGBAInt() const {
+    Vector4f copy = clampComponentCopy( 0.f, 1.f ) ; 
+    return RGBA( copy.r*255, copy.g*255, copy.b*255, copy.a*255 ) ;
+  }
   
+  // default max A
+  unsigned int RGBInt() const {
+    Vector4f copy = clampComponentCopy( 0.f, 1.f ) ; 
+    return RGB( copy.r*255, copy.g*255, copy.b*255 ) ;
+  }
+
   inline Vector3f& xyz(){
     return (Vector3f&)x ;
   }
@@ -1201,6 +1274,11 @@ union Vector4f
   inline Vector4f& operator/=( float s ){
     x/=s,y/=s,z/=s,w/=s;
     return *this ;
+  }
+  inline Vector4f clampComponentCopy( float minVal, float maxVal ) const
+  {
+    Vector4f copy = *this ;
+    return copy.clampComponent( minVal, maxVal ) ;
   }
   inline Vector4f& clampComponent( float minVal, float maxVal )
   {
@@ -1972,28 +2050,8 @@ struct Axis
 
 
 
-// Actually PcNCT (position, centroid, normal, color, texture),
-// but 'c' is implied as part of "position"
-struct VertexPNCT
-{
-  Vector3f pos ;
-  Vector3f normal ;
-  Vector4f color ;
-  Vector2f tex ;
-    
-  VertexPNCT(){}
-  
-  VertexPNCT( const Vector3f& iPos, const Vector3f& iNormal,
-              const Vector4f& iColor, const Vector2f& iTex ) :
-              pos(iPos),normal(iNormal),tex(iTex),color(iColor)
-  {
-  }
-              
-} ;
 
 
-
-// FOR TEXT and stuff that doesn't use the centroid wrap transformation
 struct VertexPCT // TEX2f,
 {
   Vector3f pos ;
@@ -2066,6 +2124,30 @@ struct VertexPNC
     
   }
   
+} ;
+
+struct VertexPNCT
+{
+  Vector3f pos ;
+  Vector3f normal ;
+  Vector4f color ;
+  Vector2f tex ;
+    
+  VertexPNCT(){}
+  
+  VertexPNCT( const Vector3f& iPos, const Vector3f& iNormal,
+              const Vector4f& iColor, const Vector2f& iTex ) :
+              pos(iPos),normal(iNormal),color(iColor),tex(iTex)
+  {
+  }
+  
+  // Its' ok not to initialize the texcoord.
+  VertexPNCT( const Vector3f& iPos, const Vector3f& iNormal,
+              const Vector4f& iColor ) :
+              pos(iPos),normal(iNormal),color(iColor)
+  {
+  }
+              
 } ;
 
 

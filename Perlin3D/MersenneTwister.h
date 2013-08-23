@@ -53,40 +53,31 @@ namespace MersenneTwister
   /* Period parameters */  
   const static int N =624;
   const static int M =397;
-  const static unsigned long long MATRIX_A   = 0x9908b0dfUL ;  /* constant vector a */
-  const static unsigned long long UPPER_MASK = 0x80000000UL ;  /* most significant w-r bits */
-  const static unsigned long long LOWER_MASK = 0x7fffffffUL ;  /* least significant r bits */
+  const static unsigned int MATRIX_A   = 0x9908b0dfU ;  // constant vector a
+  const static unsigned int UPPER_MASK = 0x80000000U ;  // most significant w-r bits
+  const static unsigned int LOWER_MASK = 0x7fffffffU ;  // least significant r bits
 
-  static unsigned long mt[N]; /* the array for the state vector  */
-  static int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+  static unsigned int mt[N]; // the array for the state vector
+  static int mti=N+1; // mti==N+1 means mt[N] is not initialized
 
-  /* initializes mt[N] with a seed */
-  void init_genrand(unsigned long s) ;
+  // initializes mt[N] with a seed
+  void init_genrand(unsigned int s) ;
 
-  /* initialize by an array with array-length */
-  /* init_key is the array for initializing keys */
-  /* key_length is its length */
-  /* slight change for C++, 2004/2/26 */
-  void init_by_array(unsigned long init_key[], int key_length);
+  // initialize by an array with array-length
+  // init_key is the array for initializing keys
+  // key_length is its length
+  // slight change for C++, 2004/2/26
+  void init_by_array(unsigned int init_key[], int key_length);
 
-  /* generates a random number on [0,0xffffffff]-interval */
-  unsigned long genrand_int32();
+  // generates a random number on [0,0xffffffff]-interval
+  unsigned int genrand_int32();
 
-  /* generates a random number on [0,0x7fffffff]-interval */
-  long genrand_int31();
+  // generates a random number on [0,1)-real-interval
+  double genrand_real();
 
-  /* generates a random number on [0,1]-real-interval */
-  double genrand_real1();
-
-  /* generates a random number on [0,1)-real-interval */
-  double genrand_real2();
-
-  /* generates a random number on (0,1)-real-interval */
-  double genrand_real3();
-
-  /* generates a random number on [0,1) with 53-bit resolution*/
+  // generates a random number on [0,1) with 53-bit resolution
   double genrand_res53() ;
-  /* These real versions are due to Isaku Wada, 2002/01/09 added */
+  // These real versions are due to Isaku Wada, 2002/01/09 added
 
   void initMersenneTwister();
 

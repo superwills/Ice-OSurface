@@ -12,7 +12,7 @@ static int adj[8][3] = {
 
 struct MarchingCubes : public IsosurfaceFinder
 {
-  MarchingCubes( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+  MarchingCubes( VoxelGrid *iVoxelGrid, vector<VertexPNCT>* iVerts, float iIsosurface, const Vector4f& color ) :
     IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
     

@@ -7,7 +7,7 @@ struct MarchingTets : public IsosurfaceFinder
 {
   bool SOLID ;
 
-  MarchingTets( VoxelGrid *iVoxelGrid, vector<VertexPNC>* iVerts, float iIsosurface, const Vector4f& color ) :
+  MarchingTets( VoxelGrid *iVoxelGrid, vector<VertexPNCT>* iVerts, float iIsosurface, const Vector4f& color ) :
     IsosurfaceFinder( iVoxelGrid, iVerts, iIsosurface, color )
   {
     SOLID=0;

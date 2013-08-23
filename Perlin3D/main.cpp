@@ -48,6 +48,7 @@
 #include "Geometry.h"
 #include "MarchingCommon.h"
 #include <vector>
+#include <set>
 #include <functional>
 using namespace std;
 
@@ -71,13 +72,18 @@ float mouseX, mouseY,
 // the repeat period for w.
 static int wTerrainPeriod=8, wTexturePeriod=8;
 
+// How many times you want the procedural texture to repeat around the world
+// too few repeats (with a low res texture) will look pixellated
+// too many repeats will make the periodicity really apparent
+int textureRepeats = 2 ;
+
 enum VizGenMode { VizGenCubes, VizGenTets, VizGenPts } ;
 const char* VizGenModeName[] = { "VizGenCubes", "VizGenTets", "VizGenPts" } ;
 int vizGenMode = VizGenCubes ;
 
 // RENDERING OPTIONS:
 float lineWidth=1.f;
-bool lightingOn=1;
+bool lightingOn=1, axisLinesOn=0, displayTextOn=0;
 bool showGradients=0 ; // not used since gradients not generated here
 
 bool repeats = 0 ;  // Show the world repeated (key 'r')
@@ -118,7 +124,6 @@ void genVizFromVoxelData()
   debugLines.clear() ;
 
   mesh.renderMode = GL_TRIANGLES ;
-
   // ISOSURFACE GENERATION!
   if( vizGenMode == VizGenPts )
   {
@@ -126,20 +131,20 @@ void genVizFromVoxelData()
     PointCloud pc( &voxelGrid, &mesh.verts, isosurface, White ) ; 
     if( !pc.useCubes ) mesh.renderMode = GL_POINTS ;
     pc.genVizPunchthru() ;
-    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize, textureRepeats ) ;
   }
   else if( vizGenMode == VizGenTets )
   {
     MarchingTets mt( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mt.genVizMarchingTets() ;
-    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize, textureRepeats ) ;
     mesh.smoothMesh( &voxelGrid, minEdgeLength ) ;
   }
   else
   {
     MarchingCubes mc( &voxelGrid, &mesh.verts, isosurface, White ) ;
     mc.genVizMarchingCubes() ;
-    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize, textureRepeats ) ;
     mesh.smoothMesh( &voxelGrid, minEdgeLength ) ;
   }
   
@@ -152,10 +157,421 @@ void regen()
   genVizFromVoxelData() ;
 }
 
+// Voronoi texture
+struct Site
+{
+  int row,col;
+  Vector2f pos ;
+  Site() : row(0),col(0),pos( 0, 0 ) {}
+  Site( int icol, int irow ) : col(icol),row(irow),pos( icol, irow ) {}
+  
+  inline int getIndex( int rows, int cols ) const { return row*cols + col ; }
+  
+  // I center 
+  Vector2f getWrappedPos( const Vector2f& worldSize, const Vector2f& v ) const
+  {
+    Vector2f offsetToCenter = worldSize/2.f - v ; // takes relativeToV to worldCenter, I may go OOB
+    Vector2f imagePos = pos + offsetToCenter ; // I may go OOB as I am offset by the same amt that makes `this` @ worldCenter
+    return imagePos.wrap( worldSize ) - offsetToCenter ; // wrap to fit in a world of worldSize (+ space world)
+  }
+  
+  float getEuclideanDistance( const Vector2f& worldSize, const Vector2f& v ) const
+  {
+    return distance1( getWrappedPos( worldSize, v ), v ) ;
+  }
+  float getEuclideanDistance2( const Vector2f& worldSize, const Vector2f& v ) const
+  {
+    return distance2( getWrappedPos( worldSize, v ), v ) ;
+  }
+  
+  float getManhattanDistance( const Vector2f& worldSize, const Vector2f& v ) const
+  {
+    return (getWrappedPos( worldSize, v ) - v).fabs().sum() ; //manhattan distance
+  }
+  
+  float getChebyshevChessDistance( const Vector2f& worldSize, const Vector2f& v ) const
+  {
+    return (getWrappedPos( worldSize, v ) - v).max() ;
+  }
+} ;
+
+/// Procedural textures
+struct Texture
+{
+  GLuint texId ;
+  int w,h ;
+  vector<float> vals ; // floating point noise values.
+  
+  // You could work with each color channel separately.
+  // You could map rgb COMPLETELY DIFFERENTLY __at each stage__,
+  // which means rgb would go in totally distinct directions.
+  //vector<Vector4f> colorVals ; // colorized noise values.
+  
+  function<Vector4f ( float val )> colorizationFunc ;
+  
+  Texture( int iw, int ih ) : w(iw), h(ih)
+  {
+    vals.resize( w*h, 0.f ) ;
+    //colorVals.resize( w*h, Vector4f(0,0,0,1) ) ;
+    
+    // The default colorization func is basically grayscale, full alpha
+    colorizationFunc = []( float val ) -> Vector4f {
+      return Vector4f( val,val,val,1.f ) ;
+    } ;
+    
+    clear() ;
+  }
+  
+  ~Texture() {}
+  
+  inline void bind() const {
+    glBindTexture( GL_TEXTURE_2D, texId ) ;  CHECK_GL ;
+  }
+  
+  // clear black, full alpha
+  Texture& clear() {
+    clear( 0 ) ;
+    return *this ;
+  }
+  
+  Texture& clear( float toVal )
+  {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[ i ] = toVal ;
+    return *this ;
+  }
+  
+  Texture& randomNoise()
+  {
+    for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        vals[ dex ] = randFloat() ;
+      }
+    }
+    return *this ;
+  }
+  
+  Texture& checkerboard( int dimX, int dimY, float darkVal, float lightVal )
+  {
+    for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        int iCell = i / dimY ;
+        int jCell = j / dimX ;
+        
+        if( iCell % 2 == jCell % 2 )
+          vals[ dex ] = darkVal ;
+        else
+          vals[ dex ] = lightVal ;
+      }
+    }
+    return *this ;
+  }
+  
+  Texture& perlin( int octaves, float octaveScaleFactor, int freqMult )
+  {
+    for( int i = 0 ; i < h ; i++ ) {
+    for( int j = 0 ; j < w ; j++ ) {
+      int dex = i*w + j ;
+      
+      // if the baseFreq is TOO LOW, start at a higher one
+      float x = (float)i/h ;
+      float y = (float)j/w ;
+      
+      float scale = 1.f ;
+      int period = 1 ;
+      
+      // add a few octaves of typical fractal noise
+      for( int i=0 ; i < octaves ; i++ )
+      {
+        vals[dex] += Perlin::pnoise( x, y, period, period ) * scale ;
+
+        // "speed up" x and y
+        x *= freqMult ;
+        y *= freqMult ;
+        scale *= octaveScaleFactor ;
+        
+        // The period of the noise has grown
+        period *= freqMult ;
+
+      }
+    }}
+    return *this ;
+  }
+  
+  // worley's voronoi noise
+  Texture& worley( const vector<Site> &sites )
+  {
+    Vector2f worldSize( h, w ) ;
+    
+    vector<float> distanceBuffer( w*h, 0.f ) ;
+      
+    float largestMinDist = 0.f ;
+    for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        
+        // get the min dist to all 12 sites
+        float minDist = HUGE ;
+        Vector2f mePos(j,i);
+        for( int si = 0 ; si < sites.size() ; si++ )
+        {
+          float dist = sites[si].getEuclideanDistance2( worldSize, mePos ) ; //euclidean distance
+          //float dist = sites[si].getManhattanDistance( worldSize, mePos ) ;
+          //float dist = sites[si].getChebyshevChessDistance( worldSize, mePos ) ; //chebyshev (chessboard)
+          
+          if( dist < minDist )  minDist = dist ;
+        }
+        distanceBuffer[ dex ] = minDist ;
+        
+        // After deciding on the minDist for that pixel (to all sites),
+        // see if that was the greatest minDist so far (normalizer)
+        if( minDist > largestMinDist )  largestMinDist = minDist ;
+      }
+    }
+    
+    // COLOR & NORMALIZE
+    for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        float s = distanceBuffer[dex] / largestMinDist ;
+        vals[dex] = s ;
+      }
+    }
+    
+    return *this ;
+  }
+  
+  // I DEFINE an 'octave' for worley is "farther distances" (still have yet to verify my terminology with the literature),
+  // the "first octave" are the distances to the CLOSEST sites
+  // "2nd octave" distances to 2nd closest. (I think they call these F1, F2 etc.)
+  // initialScale is the multiplier for the 1st octave.
+  // if octaveScaleFactor is > 1, then the high octaves weigh MORE AND MORE
+  Texture& worley( int numSites, float initialScale, float octaveScaleFactor, int octaves )
+  {
+    vector<Site> sites ; // indices of sites.
+    for( int i = 0 ; i < numSites ; i++ )
+      sites.push_back( Site( randInt( 0, h ), randInt( 0, w ) ) ) ;
+      
+    Vector2f worldSize( h, w ) ;
+    
+    // these store distances in order.
+    vector< vector<float> > distanceBuffer( w*h ) ;
+    
+    for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        Vector2f mePos(j,i);
+        
+        // Get all the distances to all the sites.
+        for( int si = 0 ; si < sites.size() ; si++ )
+        {
+          float dist = sites[si].getEuclideanDistance( worldSize, mePos ) ; //euclidean distance
+          //float dist = sites[si].getManhattanDistance( worldSize, mePos ) ;
+          //float dist = sites[si].getChebyshevChessDistance( worldSize, mePos ) ; //chebyshev (chessboard)
+          // chebyshev makes a thatch pattern
+          
+          // find the spot
+          vector<float>::iterator iter = distanceBuffer[dex].begin() ;
+
+          //                                                                                          0.6599          
+          //                                                                                             ^
+          // advance iter until the one it points to exceeds `dist`: they go in ascending order ( 0.4532, 1.1235, 2.23525 )
+          while( iter != distanceBuffer[dex].end() && dist > *iter )  ++iter ;
+          
+          // goes BEFORE iter. (and when iter points to "1 past the end", it goes before that.)
+          distanceBuffer[dex].insert( iter, dist ) ;
+        }
+      }
+    }
+    
+    // NORMALIZE
+    // find the max for each octave
+    vector<float> maxes( octaves, 0.f ) ;
+    for( int i = 0 ; i < w*h ; i++ )
+    {
+      for( int oc = 0 ; oc < octaves ; oc++ )
+      {
+        // "octave 0" is just the closest distance.  here
+        // maxes[0] looks in ALL distanceBuffer[dex] for
+        // the LARGEST "CLOSEST" distance
+        if( maxes[oc] < distanceBuffer[i][oc] )
+          maxes[oc] = distanceBuffer[i][oc] ;
+      }
+    }
+    
+    for( int i = 0 ; i < w*h ; i++ )
+      for( int oc = 0 ; oc < octaves ; oc++ )
+        distanceBuffer[i][oc] /= maxes[oc] ; // normalize EACH OCTAVE
+    
+    float scale = initialScale ;
+    
+    /*
+    // Sum the octaves.
+    for( int oc = 0 ; oc < octaves ; oc++ )
+    {
+      for( int i = 0 ; i < h ; i++ ) {
+      for( int j = 0 ; j < w ; j++ ) {
+        int dex = i*w + j ;
+        
+        // Apply the normalization to each octave here
+        float s = scale * distanceBuffer[dex][oc] / maxes[oc] ;
+        vals[dex] = s ;
+      }}
+      
+      scale *= octaveScaleFactor ;
+    }
+    */
+    
+    // Sum the octaves.
+    for( int i = 0 ; i < h ; i++ ) {
+    for( int j = 0 ; j < w ; j++ ) {
+      int dex = i*w + j ;
+      
+      // Apply the normalization to each octave here
+      float s = distanceBuffer[dex][1] - distanceBuffer[dex][0] ;
+      vals[dex] = s ;
+    }}
+    
+    scale *= octaveScaleFactor ;
+    return *this ;
+  }
+  
+  Texture& operator*=( const Texture& o ) {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[i] *= o.vals[i] ;
+    return *this ;
+  }
+  
+  Texture& operator/=( const Texture& o ) {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[i] /= o.vals[i] ;
+    return *this ;
+  }
+  
+  Texture& operator+=( const Texture& o ) {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[i] += o.vals[i] ;
+    return *this ;
+  }
+  
+  // bias the whole texture by some float val.
+  // useful if you want the MINIMUM value to be some range
+  Texture& operator+=( float val ) {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[i] += val ;
+    return *this ;
+  }
+  
+  Texture& operator-=( const Texture& o ) {
+    for( int i = 0 ; i < w*h ; i++ )
+      vals[i] -= o.vals[i] ;
+    return *this ;
+  }
+  
+  // FORCES opaque (alpha=1)
+//  Texture& opaque( const Texture& o ) {
+//    for( int i = 0 ; i < w*h ; i++ )
+//      vals[i].a = 1.f ;
+//    return *this ;
+//  }
+  
+  // Finds max component and makes range 0->1 all values
+  Texture& renormalize()
+  {
+    float maxVal=0.f;
+    float minVal=HUGE ;
+    
+    for( int i = 0 ; i < w*h ; i++ ) {
+      if( vals[i] > maxVal )  maxVal = vals[i] ;
+      if( vals[i] < minVal )  minVal = vals[i] ;
+    }
+    
+    // BIAS if -ve
+    // -0.2, 0.0, 0.2 => 0, 0.2, 0.4
+    if( minVal < 0.f ){
+      for( int i = 0 ; i < w*h ; i++ )
+        vals[i] -= minVal ;
+        
+      maxVal -= minVal ;
+    }
+
+    if( maxVal > 0.f )
+      for( int i = 0 ; i < w*h ; i++ )
+        vals[i] /= maxVal ;
+        
+    return *this ;
+  }
+  
+  void createGL()
+  {
+    renormalize() ;
+    
+    vector<unsigned int> texels ;
+    texels.resize( w * h, 0 ) ;
+    
+    // The default is to get the rGBA int from each vector4f
+    for( int i = 0 ; i < w*h ; i++ )
+      texels[i] = colorizationFunc( vals[ i ] ).RGBAInt() ;
+    
+    glGenTextures( 1, &texId ) ;  CHECK_GL ;
+    glBindTexture( GL_TEXTURE_2D, texId ) ;  CHECK_GL ;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);  CHECK_GL ;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  CHECK_GL ;
+    
+    // we do not want to wrap, this will cause incorrect shadows to be rendered
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT ) ;  CHECK_GL ; //GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT ) ;  CHECK_GL ;
+    
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, &texels[0] ) ;  CHECK_GL ;
+    glActiveTexture( GL_TEXTURE0 ) ;  CHECK_GL ;
+  }
+} ;
+
+
+
+
+
+
+
+
+
+
+
+// Generates the procedural `detail texture`
+void genTex( int w, int h )
+{
+  Texture t1( w, h ) ;
+  Texture t2( w, h ) ;
+  
+  // perlin( int octaves, float initialScale, float octaveScaleFactor, int freqMult )
+  t1.worley( 25, 0.34, 1.3, 2 ) ;
+  t1 += 0.5 ;
+  t1.renormalize() ;
+  
+  t2.perlin( 8, 0.5, 2.0 ) ;
+  t2.renormalize() ;
+  t1 *= t2 ;
+  
+  t1.createGL() ;
+}
+
+
+
+
+
+
+
+
+
+
+
 void init() // Called before main loop to set up the program
 {
   //initDirections() ;
   regen() ;
+  genTex( 1024, 1024 ) ;
   
   axis.pos = Vector3f( 0, 0, 350 ) ;
   glClearColor( 0.1, 0.1, 0.1, 0.1 ) ;
@@ -355,9 +771,10 @@ void draw()
   //glRotatef( my, 1, 0, 0 ) ;
   //glRotatef( mx, 0, 1, 0 ) ;
   
-  glLineWidth( lineWidth ) ;
-  drawAxisLines() ;
-  
+  if( axisLinesOn )
+  {
+    drawAxisLines() ;
+  }
   
   // Lights.
   if( lightingOn )
@@ -396,12 +813,15 @@ void draw()
   
     glEnable( GL_LIGHTING ) ;
   }
-
+  
   glEnableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
   glEnableClientState( GL_NORMAL_ARRAY ) ;  CHECK_GL ;
   glEnableClientState( GL_COLOR_ARRAY ) ;  CHECK_GL ;
+  glEnableClientState( GL_TEXTURE_COORD_ARRAY ) ;  CHECK_GL ;
   
-
+  // Bind a texture to use
+  glEnable( GL_TEXTURE_2D ) ;
+  
   // DRAW THE MESH
   if( mesh.verts.size() )
   {
@@ -409,10 +829,11 @@ void draw()
     if( !mesh.indices.size() ) // NO INDEX BUFFER
     {
       // vertex arrays with no index buffer
-      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].pos ) ;
-      glNormalPointer( GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].normal ) ;
-      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].color ) ;
-
+      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].pos ) ;
+      glNormalPointer( GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].normal ) ;
+      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].color ) ;
+      glTexCoordPointer( 2, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].tex ) ;
+      
       if( repeats )
       {
         for( int i = -1 ; i <= 1 ; i++ )
@@ -435,18 +856,22 @@ void draw()
     else
     {
       // Use the index buffer if it exists
-      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].pos ) ;
-      glNormalPointer( GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].normal ) ;
-      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNC ), &mesh.verts[0].color ) ;
-
+      glVertexPointer( 3, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].pos ) ;
+      glNormalPointer( GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].normal ) ;
+      glColorPointer( 4, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].color ) ;
+      glTexCoordPointer( 2, GL_FLOAT, sizeof( VertexPNCT ), &mesh.verts[0].tex ) ;
+      
       drawElements( mesh.renderMode, mesh.indices ) ;
     }
     //glDepthMask( 1 ) ;
   }
   
-  glDisableClientState( GL_NORMAL_ARRAY ) ;
+  glDisableClientState( GL_NORMAL_ARRAY ) ;  CHECK_GL ;
+  glDisableClientState( GL_TEXTURE_COORD_ARRAY ) ;  CHECK_GL ;
+  glDisable( GL_TEXTURE_2D ) ;
   glDisable( GL_LIGHTING ) ;
-
+  
+  // Draw some debug lines etc.
   if( showGradients )
   {
     glVertexPointer( 3, GL_FLOAT, sizeof( VertexPC ), &gradients[0].pos ) ;
@@ -473,47 +898,85 @@ void draw()
   glLoadIdentity();
   glDisable( GL_DEPTH_TEST ) ;
   
-  int polyMode ;
-  glGetIntegerv( GL_POLYGON_MODE, &polyMode ) ;
-  char buf[1024];
-  int pos = sprintf( buf, "(!)export " ) ;
-  pos += sprintf( buf+pos, " (2)%s", glGetPolygonMode()==GL_FILL?"wireframe":"solid" ) ;
+  // subwindow overlay
+  glEnable( GL_TEXTURE_2D ) ;
+  glEnableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
+  glEnableClientState( GL_COLOR_ARRAY ) ;  CHECK_GL ;
+  glEnableClientState( GL_TEXTURE_COORD_ARRAY ) ;  CHECK_GL ;
   
-  // if you are in pts mode, special set of options available to you
-  if( vizGenMode==VizGenPts )
-  {
-    if( PointCloud::useCubes )
-      pos += sprintf( buf+pos, " (3)render points (p/P)cubesize" ) ;
-    else
-      pos += sprintf( buf+pos, " (3)render cubes (p/P)ointsize" ) ;
-  }
-  pos += sprintf( buf+pos, repeats?" un(r)epeat":" (r)epeat" ) ;
-  
-  float yPos = 0.f, yi = 30.f ;
-  glutPuts( buf, Vector2f( 20, yPos+=yi ), White ) ;
-
-  int numPts = (int)mesh.verts.size() ;
-  const char* ptsOrTris = "pts" ;
-  if( mesh.renderMode==GL_TRIANGLES )
-  {
-    numPts /= 3 ;
-    ptsOrTris = "tris" ;
-  }
-  else
-  {
+  int swSize=180, swMargin=10;
+  glViewport( w - swSize-swMargin, swMargin, swSize, swSize ) ;
+  float m=2.f;
+  static VertexPCT subWindowQuad[6] = {
+    VertexPCT( Vector3f(-1,-1,0), 1, Vector2f(0,0) ),
+    VertexPCT( Vector3f(1,-1,0), 1, Vector2f(m,0) ),
+    VertexPCT( Vector3f(1,1,0), 1, Vector2f(m,m) ),
     
+    VertexPCT( Vector3f(-1,-1,0), 1, Vector2f(0,0) ),
+    VertexPCT( Vector3f(1, 1, 0), 1, Vector2f(m,m) ),
+    VertexPCT( Vector3f(-1, 1, 0), 1, Vector2f(0,m) )
+  } ;
+  
+  glVertexPointer( 3, GL_FLOAT, sizeof( VertexPCT ), &subWindowQuad[0].pos ) ;
+  glColorPointer( 4, GL_FLOAT, sizeof( VertexPCT ), &subWindowQuad[0].color ) ;
+  glTexCoordPointer( 2, GL_FLOAT, sizeof( VertexPCT ), &subWindowQuad[0].tex ) ;
+  
+  glDrawArrays( GL_TRIANGLES, 0, 6 ) ;
+  
+  glDisableClientState( GL_VERTEX_ARRAY ) ;  CHECK_GL ;
+  glDisableClientState( GL_COLOR_ARRAY ) ;  CHECK_GL ;
+  glDisableClientState( GL_TEXTURE_COORD_ARRAY ) ;  CHECK_GL ;
+  glDisable( GL_TEXTURE_2D ) ;
+  
+  if( displayTextOn )
+  {
+    // back to full for text
+    glViewport( 0, 0, w, h ) ;
+    int polyMode ;
+    glGetIntegerv( GL_POLYGON_MODE, &polyMode ) ;
+    char buf[1024];
+    int pos = sprintf( buf, "(!)export " ) ;
+    pos += sprintf( buf+pos, " (2)%s", glGetPolygonMode()==GL_FILL?"wireframe":"solid" ) ;
+    
+    // if you are in pts mode, special set of options available to you
+    if( vizGenMode==VizGenPts )
+    {
+      if( PointCloud::useCubes )
+        pos += sprintf( buf+pos, " (3)render points (p/P)cubesize" ) ;
+      else
+        pos += sprintf( buf+pos, " (3)render cubes (p/P)ointsize" ) ;
+    }
+    pos += sprintf( buf+pos, repeats?" un(r)epeat":" (r)epeat" ) ;
+    
+    float yPos = 0.f, yi = 30.f ;
+    glutPuts( buf, Vector2f( 20, yPos+=yi ), White ) ;
+
+    int numPts = (int)mesh.verts.size() ;
+    const char* ptsOrTris = "pts" ;
+    if( mesh.renderMode==GL_TRIANGLES )
+    {
+      if( mesh.indices.size() )
+        numPts = (int)mesh.indices.size()/3 ;
+      else
+        numPts /= 3 ;
+      ptsOrTris = "tris" ;
+    }
+    else
+    {
+      
+    }
+    
+    sprintf( buf, "(t) %s (k)gridSize=%d / %s=%d (+/-)w=%.2f (i/I)isosurface=%.2f",
+      VizGenModeName[ vizGenMode ],
+      voxelGrid.dims.x, ptsOrTris, numPts,
+      wTerrain, isosurface ) ;
+    glutPuts( buf, Vector2f(20, yPos+=yi), White ) ;
+    sprintf( buf, "(n/N)minEdgeLength=%.3f (g/G)speed=%.2f (j/J)worldSize=%.2f",
+      minEdgeLength, speed, voxelGrid.worldSize ) ;
+    
+    glutPuts( buf, Vector2f(20, h-yi), White ) ;
   }
   
-  sprintf( buf, "(t) %s (k)gridSize=%d / %s=%d (+/-)w=%.2f (i/I)isosurface=%.2f",
-    VizGenModeName[ vizGenMode ],
-    voxelGrid.dims.x, ptsOrTris, numPts,
-    wTerrain, isosurface ) ;
-  glutPuts( buf, Vector2f(20, yPos+=yi), White ) ;
-  sprintf( buf, "(n/N)minEdgeLength=%.3f (g/G)speed=%.2f (j/J)worldSize=%.2f",
-    minEdgeLength, speed, voxelGrid.worldSize ) ;
-  
-  glutPuts( buf, Vector2f(20, h-yi), White ) ;
-
   glutSwapBuffers();
 }
 
@@ -587,6 +1050,15 @@ void keyboard( unsigned char key, int x, int y )
     EPS -= 1e-2f ;
     regen() ;
     break ;
+    
+  case '5':
+    displayTextOn = !displayTextOn ;
+    break ;
+
+  case '7':
+    axisLinesOn = !axisLinesOn ;
+    break ;
+    
   case '=':
     wTerrain+=diff;
     regen();
@@ -655,10 +1127,12 @@ void keyboard( unsigned char key, int x, int y )
   case 'l':
     lineWidth++;
     clamp( lineWidth, 1.f, 16.f ) ;
+    glLineWidth( lineWidth ) ;
     break; 
   case 'L':
     lineWidth--;
     clamp( lineWidth, 1.f, 16.f ) ;
+    glLineWidth( lineWidth ) ;
     break;
     
   case 'n':
@@ -712,12 +1186,12 @@ void keyboard( unsigned char key, int x, int y )
 
   case 'y':
     wTexture += 0.01f ;
-    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize, textureRepeats ) ;
     break ;
 
   case 'Y':
     wTexture -= 0.01f ;
-    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize ) ;
+    mesh.vertexTexture( wTexture, wTexturePeriod, voxelGrid.worldSize, textureRepeats ) ;
     break ;
 
   case 'z':

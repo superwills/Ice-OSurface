@@ -14,7 +14,7 @@ Vector4f AxisEdgeColors[] = {
 struct Mesh
 {
   // Final array of vertices output by program (to draw)
-  vector<VertexPNC> verts ;
+  vector<VertexPNCT> verts ;
   vector<int> indices ;
 
   int renderMode ;
@@ -26,7 +26,7 @@ struct Mesh
 
   void createIndexBuffer()
   {
-    vector<VertexPNC> iVerts ;
+    vector<VertexPNCT> iVerts ;
 
     // now smooth the normals.
     iVerts.clear() ;
@@ -60,7 +60,7 @@ struct Mesh
 
   void rebuild()
   {
-    vector<VertexPNC> rebuiltiVerts ;
+    vector<VertexPNCT> rebuiltiVerts ;
     vector<int> rebuiltIndices ;
   
     // if its not referenced it gets left out of the rebuild
@@ -119,8 +119,8 @@ struct Mesh
     vertexWallHits.clear() ;
     vNeighbours.clear() ;
     
-    vertexWallHits.resize( verts.size() ) ;
     wallToVertexHits.resize( 6 ) ;
+    vertexWallHits.resize( verts.size() ) ;
     vNeighbours.resize( verts.size() ) ;
     
     // Every vertex..
@@ -374,12 +374,11 @@ public:
                 break ;
               }
             }
-                          
-              // UNLESS.. the edge doesn't exist on the other wall (it is a repeat point).
-              // so you have to force merge the vertices.  SEE BUG #
+            
+            // Not the same wall.  Skip the merge.
             if( !sameWall ) skip ;
             
-            // You do the same thing for #edge wall hits=0,1,2 or 3.
+            // You do the same thing for #edge wall hits=0,1,2.
             mergeToCenter( i1, i2 ) ;
 
             // in case it IS an edge vertex,
@@ -387,9 +386,8 @@ public:
             // because it's possible that for the repeat side,
             // some internal edges will merge FIRST, before that
             // repeat side gets a chance to, creating holes.
-            if( vNeighbours[i1].size() == vNeighbours[i2].size() ) // this breaks down when there's a hole in the mesh
+            if( vNeighbours[i1].size() == vNeighbours[i2].size() ) // this is NOT true when there's ALREADY a hole in the mesh
             {
-              
               for( int n = 0 ; n < vNeighbours[i1].size() ; n++ )
               {
                 // do a regular edge merge for ni1, ni2.
@@ -406,24 +404,7 @@ public:
             // merge towards HIGHER DEGREE edge (we made degree i1 always > degree i2 w/swap above).
             mergeToFirst( i1, i2 ) ;
             
-            // For corner merge, i2 will be pulled to i1.
-            // We mirror this action on ALL neighbours of i1,
-            // pulling each mirror image of i2 in.
-            // In a corner, i1 has __4__ images.
-            //isCornerMerge
-            // ALL NEIGHBOURS OF i1 MERGE THEIR i2
-            if( vertexWallHits[i1].size() == 2 )
-            {
-              // I didn't test the .size()==3 case, so I exclude it from this merge behavior.
-              // It will not work the same way, because if i1.#axes==3 but i2.#axes==2,
-              // then i1 has __8__ neighbours, but i2 only has 4.
-              
-            }
-            
           }
-          
-          
-          
         }
       }
     }
@@ -447,9 +428,15 @@ public:
 
     // (not done)
   }
-
-  void vertexTexture( float wTexture, int wTexturePeriod, const Vector3f& worldSize )
+  
+  
+  // Generates per-vertex colors using perlin noise and a cubic spline
+  // also generates texcoords for procedural detail tex
+  void vertexTexture( float wTexture, int wTexturePeriod, const Vector3f& worldSize, int textureRepeats )
   {
+    // this makes the texture repeat (textureRepeats) times across the world
+    Vector2f texScale = Vector2f(textureRepeats) / worldSize.xy() ;
+    
     for( int i = 0 ; i < verts.size() ; i++ )
     {
       Vector3f sp = verts[i].pos ;
@@ -457,6 +444,8 @@ public:
       //sp.normalize() ;
       sp /= worldSize ;
       
+      // The color comes out of the perlin noise mapping from the 3-space position,
+      // so it varies smoothly in 3 space.
       //float n = Perlin::pnoise( sinf(sp.x), cosf(2*sp.y), sp.z, tw.x, 2,2,2,2 ) ;
       //float n = Perlin::pnoise( sinf(2*M_PI*sp.x), cosf(2*M_PI*sp.y), sp.z, tw.x, 2,2,1,8 ) ;
       float n = Perlin::pnoise( sp.x, sp.y, sp.z, wTexture, 1,1,1,wTexturePeriod ) ;
@@ -470,7 +459,6 @@ public:
         Vector3f( 0.87,0.1,0 ),
         Vector3f( 0.66,0.24,0.2 ),
         Vector3f( 0.55,0.21,0.1 )
-        
       ) ;
       
       // Negative color is undefined
@@ -478,10 +466,25 @@ public:
 
       // No extreme colors
       //color.clampLen( 0.45f, 0.65f ) ;
-
+      
+      // Give each vertex this uniqueish smooth color
       verts[i].color.xyz() = color ;
+      
+      
+      
+      // Figure out a reasonable tiling on the surface.
+      verts[i].tex = Vector2f( randInt(0, 2), randInt( 0, 2 ) ) ;
+      
+      
+
+      
+      //verts[i].tex = Vector2f::random() ;
+      verts[i].tex = verts[i].pos.xy() * texScale ; 
+      //verts[i].tex.fabs() ;
     }
   }
+  
+  
 } ;
 
 

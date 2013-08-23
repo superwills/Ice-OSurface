@@ -1252,3 +1252,61 @@ float Perlin::sdnoise( float x, float y, float z, float w,
 
   return noise;
 }
+
+
+
+
+float Perlin::hnoise1( float x, int px, float octaveScaleFactor, float freqMult, int numFreqs )
+{
+  float sum = 0.f;
+  float scale = 1.f;
+  for( int i = 0 ; i < numFreqs ; i++ )
+  {
+    sum += pnoise(x,px) * scale; // get noise, reduce magnitude by scale (so "higher freq" noise has less effect)
+    scale *= octaveScaleFactor ; // increase division factor, for next iteration
+    x *= freqMult ; // "up the frequency" of next noise value.
+  }
+  return sum ;
+}
+
+// To wrap on a sphere:  use theta and phi for x and y
+// Brushed metal: vary only ONE of x,y
+//   (eg PerlinNoise2D( uv.x, _1_, 2, 2, 8 ) // (the 1 stays constant across the 2d face)
+//   (OR you could just generate a line of 1d noise and copy it)
+float Perlin::hnoise2( float x, float y, int px, int py, float octaveScaleFactor, float freqMult, int numFreqs )
+{
+  float sum = 0.f;
+  float p[2],scale = 1.f;
+
+  p[0] = x;
+  p[1] = y;
+  for( int i=0 ; i < numFreqs ; i++ )
+  {
+    sum += pnoise(p[0],p[1],px,py) * scale;
+    scale *= octaveScaleFactor ;
+    p[0] *= freqMult ;
+    p[1] *= freqMult ;
+  }
+  return sum ;
+}
+
+float Perlin::hnoise3(float x, float y, float z, int px, int py, int pz, float octaveScaleFactor, float freqMult, int numFreqs )
+{
+  float sum = 0.f;
+  float p[3],scale = 1.f;
+
+  p[0] = x;
+  p[1] = y;
+  p[2] = z;
+  for( int i = 0 ; i < numFreqs ; i++ )
+  {
+    sum += pnoise(p[0],p[1],p[2],px,py,pz) * scale;
+    scale *= octaveScaleFactor ;
+    p[0] *= freqMult ;
+    p[1] *= freqMult ;
+    p[2] *= freqMult ;
+  }
+  return sum ;
+}
+
+

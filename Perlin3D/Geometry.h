@@ -315,30 +315,40 @@ struct Geometry
     verts.push_back( A ) ;  verts.push_back( B ) ;  verts.push_back( C ) ;
   }
   
-  static void addTri( vector<VertexPC>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector4f& color ) {
-    verts.push_back( VertexPC(A,color) ) ;
-    verts.push_back( VertexPC(B,color) ) ;
-    verts.push_back( VertexPC(C,color) ) ;
+  // T has to support construction T( pos, color )
+  template <typename T>
+  static void addTriNoNormal( vector<T>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector4f& color ) {
+    verts.push_back( T(A,color) ) ;
+    verts.push_back( T(B,color) ) ;
+    verts.push_back( T(C,color) ) ;
   }
   
-  static void addTriWithNormal( vector<VertexPNC>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector4f& color ) {
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addTriWithNormal( vector<T>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector4f& color ) {
     Vector3f nABC = Triangle::triNormal( A, B, C ) ;
-    addTri( verts, VertexPNC( A, nABC, color ), VertexPNC( B, nABC, color ), VertexPNC( C, nABC, color ) ) ;
+    addTri( verts, T( A, nABC, color ), T( B, nABC, color ), T( C, nABC, color ) ) ;
   }
 
-  static void addQuadWithNormal( vector<VertexPNC>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D, const Vector4f& color ) {
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addQuadWithNormal( vector<T>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D, const Vector4f& color ) {
     addTriWithNormal( verts, A, B, C, color ) ;
     addTriWithNormal( verts, A, C, D, color ) ;
   }
 
-  static void addPentagonWithNormal( vector<VertexPNC>& verts, 
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addPentagonWithNormal( vector<T>& verts, 
     const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D, const Vector3f& E, const Vector4f& color ) {
     addTriWithNormal( verts, A, B, C, color ) ;
     addTriWithNormal( verts, A, C, D, color ) ;
     addTriWithNormal( verts, A, D, E, color ) ;
   }
   
-  static void addHexagonWithNormal( vector<VertexPNC>& verts, 
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addHexagonWithNormal( vector<T>& verts, 
     const Vector3f& A, const Vector3f& B, const Vector3f& C,
     const Vector3f& D, const Vector3f& E, const Vector3f& F, const Vector4f& color ) {
     addTriWithNormal( verts, A, B, C, color ) ;
@@ -359,14 +369,18 @@ struct Geometry
     addTri( verts, A, C, D ) ;
   }
   
-  static void addQuad( vector<VertexPC>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D, const Vector4f& color )
+  // T has to support construction T( pos, color )
+  template <typename T>
+  static void addQuadNoNormal( vector<T>& verts, const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D, const Vector4f& color )
   {
-    addTri( verts, A, B, C, color ) ;
-    addTri( verts, A, C, D, color ) ;
+    addTriNoNormal( verts, A, B, C, color ) ;
+    addTriNoNormal( verts, A, C, D, color ) ;
   }
   
   // wind the 2 faces FACING OUT ok?
-  static void triPrism( vector<VertexPNC>& verts,
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void triPrism( vector<T>& verts,
     const Vector3f& A, const Vector3f& B, const Vector3f& C,
     const Vector3f& D, const Vector3f& E, const Vector3f& F,
     const Vector4f& color )
@@ -384,7 +398,9 @@ struct Geometry
     addTriWithNormal( verts, C, D, A, color ) ;
   }
   
-  static void addTet( vector<VertexPNC>& verts,
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addTet( vector<T>& verts,
     const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D,
     const Vector4f& color )
   {
@@ -636,7 +652,9 @@ struct Geometry
     Geometry::addQuad( cmVerts, VertexPC( F,color ), VertexPC( B,color ), VertexPC( D,color ), VertexPC( H,color ) ) ;
   }
   
-  static void addCubeFacingIn( vector<VertexPNC>& cmVerts, const Vector3f& center, float s, const Vector4f& color )
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addCubeFacingIn( vector<T>& cmVerts, const Vector3f& center, float s, const Vector4f& color )
   {
     s /= 2.f;
     /*
@@ -660,30 +678,32 @@ struct Geometry
     E+=center ;  F+=center ;  G+=center ;  H+=center ;
     // right face PX
     Vector3f norm( -1,0,0 ) ;
-    Geometry::addQuad( cmVerts, VertexPNC( E,norm,color ), VertexPNC( F,norm,color ), VertexPNC( H,norm,color ), VertexPNC( G,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( E,norm,color ), T( F,norm,color ), T( H,norm,color ), T( G,norm,color ) ) ; // IN
     
     // left NX
     norm.x= 1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( A,norm,color ), VertexPNC( C,norm,color ), VertexPNC( D,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( A,norm,color ), T( C,norm,color ), T( D,norm,color ) ) ; // IN
 
     // top face PY
     norm.x=0,norm.y=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( C,norm,color ), VertexPNC( G,norm,color ), VertexPNC( H,norm,color ), VertexPNC( D,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( C,norm,color ), T( G,norm,color ), T( H,norm,color ), T( D,norm,color ) ) ; // IN
     
     // bottom NY
     norm.y= 1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( F,norm,color ), VertexPNC( E,norm,color ), VertexPNC( A,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( F,norm,color ), T( E,norm,color ), T( A,norm,color ) ) ; // IN
     
     // back face PZ
     norm.y=0,norm.z=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( A,norm,color ), VertexPNC( E,norm,color ), VertexPNC( G,norm,color ), VertexPNC( C,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( A,norm,color ), T( E,norm,color ), T( G,norm,color ), T( C,norm,color ) ) ; // IN
     
     // front face NZ
     norm.z= 1;
-    Geometry::addQuad( cmVerts, VertexPNC( F,norm,color ), VertexPNC( B,norm,color ), VertexPNC( D,norm,color ), VertexPNC( H,norm,color ) ) ;
+    Geometry::addQuad( cmVerts, T( F,norm,color ), T( B,norm,color ), T( D,norm,color ), T( H,norm,color ) ) ;
   }
-
-  static void addCubeFacingOut( vector<VertexPNC>& cmVerts, const Vector3f& center, float s, const Vector4f& color )
+  
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addCubeFacingOut( vector<T>& cmVerts, const Vector3f& center, float s, const Vector4f& color )
   {
     s /= 2.f;
     /*
@@ -698,30 +718,32 @@ struct Geometry
     A+=center ;  B+=center ;  C+=center ;  D+=center ;  E+=center ;  F+=center ;  G+=center ;  H+=center ;
     // right face PX
     Vector3f norm( 1,0,0 ) ;
-    Geometry::addQuad( cmVerts, VertexPNC( E,norm,color ), VertexPNC( G,norm,color ), VertexPNC( H,norm,color ), VertexPNC( F,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( E,norm,color ), T( G,norm,color ), T( H,norm,color ), T( F,norm,color ) ) ; // IN
     
     // left NX
     norm.x=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( D,norm,color ), VertexPNC( C,norm,color ), VertexPNC( A,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( D,norm,color ), T( C,norm,color ), T( A,norm,color ) ) ; // IN
 
     // top face PY
     norm.x=0,norm.y=1;
-    Geometry::addQuad( cmVerts, VertexPNC( C,norm,color ), VertexPNC( D,norm,color ), VertexPNC( H,norm,color ), VertexPNC( G,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( C,norm,color ), T( D,norm,color ), T( H,norm,color ), T( G,norm,color ) ) ; // IN
     
     // bottom NY
     norm.y=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( A,norm,color ), VertexPNC( E,norm,color ), VertexPNC( F,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( A,norm,color ), T( E,norm,color ), T( F,norm,color ) ) ; // IN
     
     // back face PZ
     norm.y=0,norm.z=1;
-    Geometry::addQuad( cmVerts, VertexPNC( A,norm,color ), VertexPNC( C,norm,color ), VertexPNC( G,norm,color ), VertexPNC( E,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( A,norm,color ), T( C,norm,color ), T( G,norm,color ), T( E,norm,color ) ) ; // IN
     
     // front face NZ
     norm.z=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( F,norm,color ), VertexPNC( H,norm,color ), VertexPNC( D,norm,color ), VertexPNC( B,norm,color ) ) ;
+    Geometry::addQuad( cmVerts, T( F,norm,color ), T( H,norm,color ), T( D,norm,color ), T( B,norm,color ) ) ;
   }
-
-  static void addCubeFacingOut( vector<VertexPNC>& cmVerts,
+  
+  // T has to support construction T( pos, normal, color )
+  template <typename T>
+  static void addCubeFacingOut( vector<T>& cmVerts,
     const Vector3f& A, const Vector3f& B, const Vector3f& C, const Vector3f& D,
     const Vector3f& E, const Vector3f& F, const Vector3f& G, const Vector3f& H, const Vector4f& color )
   {
@@ -734,27 +756,27 @@ struct Geometry
     */
     // right face PX
     Vector3f norm( 1,0,0 ) ;
-    Geometry::addQuad( cmVerts, VertexPNC( E,norm,color ), VertexPNC( G,norm,color ), VertexPNC( H,norm,color ), VertexPNC( F,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( E,norm,color ), T( G,norm,color ), T( H,norm,color ), T( F,norm,color ) ) ; // IN
     
     // left NX
     norm.x=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( D,norm,color ), VertexPNC( C,norm,color ), VertexPNC( A,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( D,norm,color ), T( C,norm,color ), T( A,norm,color ) ) ; // IN
 
     // top face PY
     norm.x=0,norm.y=1;
-    Geometry::addQuad( cmVerts, VertexPNC( C,norm,color ), VertexPNC( D,norm,color ), VertexPNC( H,norm,color ), VertexPNC( G,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( C,norm,color ), T( D,norm,color ), T( H,norm,color ), T( G,norm,color ) ) ; // IN
     
     // bottom NY
     norm.y=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( B,norm,color ), VertexPNC( A,norm,color ), VertexPNC( E,norm,color ), VertexPNC( F,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( B,norm,color ), T( A,norm,color ), T( E,norm,color ), T( F,norm,color ) ) ; // IN
     
     // back face PZ
     norm.y=0,norm.z=1;
-    Geometry::addQuad( cmVerts, VertexPNC( A,norm,color ), VertexPNC( C,norm,color ), VertexPNC( G,norm,color ), VertexPNC( E,norm,color ) ) ; // IN
+    Geometry::addQuad( cmVerts, T( A,norm,color ), T( C,norm,color ), T( G,norm,color ), T( E,norm,color ) ) ; // IN
     
     // front face NZ
     norm.z=-1;
-    Geometry::addQuad( cmVerts, VertexPNC( F,norm,color ), VertexPNC( H,norm,color ), VertexPNC( D,norm,color ), VertexPNC( B,norm,color ) ) ;
+    Geometry::addQuad( cmVerts, T( F,norm,color ), T( H,norm,color ), T( D,norm,color ), T( B,norm,color ) ) ;
   }
   
 } ;
